@@ -1,0 +1,75 @@
+name: build
+
+# Every push and PR is verified. An installer is attached to a release only when
+# you push a version tag, so publishing stays a deliberate act.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # src-tauri is its own cargo workspace, so point the cache at it.
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run check
+
+      # Offline fixture assertions only. `npm run test:live` hits YouTube and would
+      # make CI fail for reasons that have nothing to do with the commit.
+      - name: Test (334 offline assertions)
+        run: npm test
+
+      - name: Test (Rust)
+        run: cargo test --bin playlet-desktop
+        working-directory: src-tauri
+
+      - name: Build NSIS installer
+        run: npm run desktop:build:nsis
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: playlet-windows-installer
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+
+      # Tag pushes only. Drafted rather than published so you get the last word,
+      # and marked prerelease while playback is still capped at 60 seconds.
+      - name: Attach installer to draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: true
+          files: src-tauri/target/release/bundle/nsis/*-setup.exe
+          body: |
+            Unsigned build — SmartScreen warns once (*More info → Run anyway*).
+            Per-user install to `%LOCALAPPDATA%\Playlet`, no admin required.
+
+            **Known limitation:** playback stops after 60 seconds. Browsing, search,
+            channels, playlists and SponsorBlock all work. See
+            [docs/STATE-AND-NEXT.md](docs/STATE-AND-NEXT.md) for the diagnosis.
