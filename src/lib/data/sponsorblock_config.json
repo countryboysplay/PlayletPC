@@ -1,0 +1,125 @@
+{
+  "serverAddress": "https://sponsor.ajay.app",
+  "categoryList": [
+    "sponsor",
+    "selfpromo",
+    "interaction",
+    "poi_highlight",
+    "intro",
+    "outro",
+    "preview",
+    "hook",
+    "filler",
+    "music_offtopic"
+  ],
+  "categories": {
+    "sponsor": {
+      "title": "Sponsor",
+      "short_title": "Sponsor",
+      "options": [
+        "auto_skip",
+        "manual_skip",
+        "show_in_seekbar",
+        "disable"
+      ],
+      "color": "#00D400B3"
+    },
+    "selfpromo": {
+      "title": "Unpaid/Self Promotion",
+      "short_title": "Unpaid/Self Promotion",
+      "options": [
+        "auto_skip",
+        "manual_skip",
+        "show_in_seekbar",
+        "disable"
+      ],
+      "color": "#FFFF00B3"
+    },
+    "interaction": {
+      "title": "Interaction Reminder (Subscribe)",
+      "short_title": "Interaction Reminder",
+      "options": [
+        "auto_skip",
+        "manual_skip",
+        "show_in_seekbar",
+        "disable"
+      ],
+      "color": "#CC00FFB3"
+    },
+    "poi_highlight": {
+      "title": "Highlight",
+      "short_title": "Highlight",
+      "options": [
+        "show_in_seekbar",
+        "disable"
+      ],
+      "color": "#FF1684B3"
+    },
+    "intro": {
+      "title": "Intermission/Intro Animation",
+      "short_title": "Intermission",
+      "options": [
+        "auto_skip",
+        "manual_skip",
+        "show_in_seekbar",
+        "disable"
+      ],
+      "color": "#00FFFFB3"
+    },
+    "outro": {
+      "title": "Endcards/Credits",
+      "short_title": "Endcards/Credits",
+      "options": [
+        "auto_skip",
+        "manual_skip",
+        "show_in_seekbar",
+        "disable"
+      ],
+      "color": "#0202EDB3"
+    },
+    "preview": {
+      "title": "Preview/Recap",
+      "short_title": "Preview/Recap",
+      "options": [
+        "auto_skip",
+        "manual_skip",
+        "show_in_seekbar",
+        "disable"
+      ],
+      "color": "#008FD6B3"
+    },
+    "hook": {
+      "title": "Hook/Greetings",
+      "short_title": "Hook/Greetings",
+      "options": [
+        "auto_skip",
+        "manual_skip",
+        "show_in_seekbar",
+        "disable"
+      ],
+      "color": "#395699B3"
+    },
+    "filler": {
+      "title": "Filler Tangent/Jokes",
+      "short_title": "Filler",
+      "options": [
+        "auto_skip",
+        "manual_skip",
+        "show_in_seekbar",
+        "disable"
+      ],
+      "color": "#7300FFE6"
+    },
+    "music_offtopic": {
+      "title": "Music: Non-Music Section",
+      "short_title": "Non-Music",
+      "options": [
+        "auto_skip",
+        "manual_skip",
+        "show_in_seekbar",
+        "disable"
+      ],
+      "color": "#FF9900B3"
+    }
+  }
+}

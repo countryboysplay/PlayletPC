@@ -1,0 +1,35 @@
+{
+  "name": "playlet-desktop",
+  "version": "0.48.3",
+  "description": "Playlet for Windows - an ad-free, privacy-respecting YouTube client. Desktop port of the Roku app by iBicha.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "svelte-check --tsconfig ./tsconfig.json && vite build",
+    "build:fast": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "desktop": "tauri dev",
+    "desktop:build": "tauri build",
+    "desktop:build:nsis": "tauri build --bundles nsis",
+    "test:live": "esbuild tests/live-dash.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/live.mjs && node node_modules/.cache/live.mjs",
+    "test": "npm run test:fixtures",
+    "test:fixtures": "esbuild tests/mapper-fixtures.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t1.mjs && node node_modules/.cache/t1.mjs && esbuild tests/dash-fixtures.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t2.mjs && node node_modules/.cache/t2.mjs"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@tauri-apps/cli": "^2.11.4",
+    "@tsconfig/svelte": "^5.0.4",
+    "svelte": "^5.19.0",
+    "svelte-check": "^4.1.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.11"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-opener": "^2.5.5",
+    "@tauri-apps/plugin-store": "^2.4.4",
+    "shaka-player": "^4.16.48"
+  }
+}

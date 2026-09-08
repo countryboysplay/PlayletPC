@@ -1,0 +1,447 @@
+//! Direct YouTube (InnerTube) transport.
+//!
+//! This is the "Playlet" backend, mirroring what the upstream Roku app does: talk to
+//! YouTube's own private API and hand the renderer something Invidious-shaped, so the
+//! app does not depend on the public Invidious network (which, as of this build, has
+//! largely stopped serving video).
+//!
+//! Why this lives in Rust rather than the webview:
+//!   * InnerTube requires per-client `User-Agent` and `X-YouTube-Client-*` headers.
+//!     The generic `api_fetch` command deliberately refuses to let the renderer set
+//!     those, and that restriction is worth keeping.
+//!   * The client identity (version, visitor id) is shared state that needs
+//!     refreshing on a timer, not per-request work in the UI.
+//!
+//! Client choice is not arbitrary - it was measured against the live API:
+//!   * IOS returns direct, unciphered stream URLs with no `n` parameter and no
+//!     PoToken requirement. That is the only reason this app needs no JS engine.
+//!   * TVHTML5 and ANDROID_VR now answer LOGIN_REQUIRED ("Sign in to confirm you're
+//!     not a bot"); WEB answers UNPLAYABLE without a PoToken. So IOS handles playback.
+//!   * IOS search/browse returns opaque `elementRenderer` blobs, so WEB handles
+//!     search, browse and recommendations, where classic renderers are still present.
+
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use tauri::State;
+use tauri_plugin_http::reqwest;
+
+const YOUTUBE_ORIGIN: &str = "https://www.youtube.com";
+const INNERTUBE_BASE: &str = "https://www.youtube.com/youtubei/v1/";
+
+const WEB_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+                      (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const IOS_UA: &str = "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)";
+
+/// Used only until the real version is scraped from the YouTube home page.
+const WEB_VERSION_FALLBACK: &str = "2.20260907.06.00";
+const IOS_VERSION: &str = "20.10.4";
+
+/// The scraped identity goes stale; YouTube ships a new web build most days.
+const IDENTITY_TTL: Duration = Duration::from_secs(6 * 60 * 60);
+
+const MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
+
+/// Endpoints the renderer is allowed to reach. Anything else is refused, so a
+/// compromised renderer cannot use this command as a general YouTube API client.
+const ALLOWED_ENDPOINTS: &[&str] = &["player", "search", "browse", "next", "resolve_url"];
+
+#[derive(Clone, Debug)]
+struct Identity {
+    web_version: String,
+    visitor_data: Option<String>,
+    fetched_at: Instant,
+}
+
+pub struct InnertubeState {
+    identity: Mutex<Option<Identity>>,
+}
+
+impl InnertubeState {
+    pub fn new() -> Self {
+        Self {
+            identity: Mutex::new(None),
+        }
+    }
+
+    fn cached(&self) -> Option<Identity> {
+        let guard = self.identity.lock().unwrap();
+        match guard.as_ref() {
+            Some(id) if id.fetched_at.elapsed() < IDENTITY_TTL => Some(id.clone()),
+            _ => None,
+        }
+    }
+
+    fn store(&self, identity: Identity) {
+        *self.identity.lock().unwrap() = Some(identity);
+    }
+}
+
+/// Pull the current web client version and visitor id out of the YouTube home page.
+///
+/// A stale `clientVersion` is not cosmetic: browse calls start answering HTTP 400
+/// once it drifts far enough from what YouTube is serving.
+async fn fetch_identity(http: &reqwest::Client) -> Identity {
+    let mut web_version = WEB_VERSION_FALLBACK.to_string();
+    let mut visitor_data = None;
+
+    let response = http
+        .get(YOUTUBE_ORIGIN)
+        .header(reqwest::header::USER_AGENT, WEB_UA)
+        .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .timeout(Duration::from_secs(15))
+        .send()
+        .await;
+
+    if let Ok(response) = response {
+        if let Ok(body) = response.text().await {
+            if let Some(found) = extract_between(&body, "\"INNERTUBE_CLIENT_VERSION\":\"", '"') {
+                web_version = found;
+            }
+            visitor_data = extract_between(&body, "\"visitorData\":\"", '"');
+        }
+    }
+
+    Identity {
+        web_version,
+        visitor_data,
+        fetched_at: Instant::now(),
+    }
+}
+
+/// Minimal scraper: the value between a literal marker and the next terminator.
+fn extract_between(haystack: &str, marker: &str, terminator: char) -> Option<String> {
+    let start = haystack.find(marker)? + marker.len();
+    let rest = &haystack[start..];
+    let end = rest.find(terminator)?;
+    let value = &rest[..end];
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+async fn identity(state: &InnertubeState, http: &reqwest::Client) -> Identity {
+    if let Some(cached) = state.cached() {
+        return cached;
+    }
+    let fresh = fetch_identity(http).await;
+    state.store(fresh.clone());
+    fresh
+}
+
+fn web_context(identity: &Identity) -> Value {
+    let mut client = json!({
+        "clientName": "WEB",
+        "clientVersion": identity.web_version,
+        "hl": "en",
+        "gl": "US",
+    });
+    if let Some(visitor) = &identity.visitor_data {
+        client["visitorData"] = json!(visitor);
+    }
+    json!({ "client": client })
+}
+
+/// A client identity: the context YouTube is given, plus the matching transport headers.
+///
+/// More than one is kept on purpose. YouTube tightens clients at different times -
+/// TVHTML5 and ANDROID_VR both answer LOGIN_REQUIRED from a desktop IP as of this
+/// build, while IOS answers OK - so the frontend walks a ladder rather than depending
+/// on any single identity remaining open.
+struct ClientProfile {
+    context: Value,
+    ua: &'static str,
+    header_name: &'static str,
+    header_version: String,
+    /// Whether the scraped visitor id applies (web-family clients only).
+    web_family: bool,
+}
+
+fn profile_for(name: &str, identity: &Identity) -> ClientProfile {
+    match name {
+        "ios" => ClientProfile {
+            context: json!({
+                "client": {
+                    "clientName": "IOS",
+                    "clientVersion": IOS_VERSION,
+                    "deviceMake": "Apple",
+                    "deviceModel": "iPhone16,2",
+                    "osName": "iPhone",
+                    "osVersion": "18.3.2.22D82",
+                    "hl": "en",
+                    "gl": "US",
+                }
+            }),
+            ua: IOS_UA,
+            header_name: "5",
+            header_version: IOS_VERSION.to_string(),
+            web_family: false,
+        },
+        "android_vr" => ClientProfile {
+            context: json!({
+                "client": {
+                    "clientName": "ANDROID_VR",
+                    "clientVersion": "1.61.48",
+                    "deviceMake": "Oculus",
+                    "deviceModel": "Quest 3",
+                    "osName": "Android",
+                    "osVersion": "12",
+                    "androidSdkVersion": 32,
+                    "hl": "en",
+                    "gl": "US",
+                }
+            }),
+            ua: "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; GB) gzip",
+            header_name: "28",
+            header_version: "1.61.48".to_string(),
+            web_family: false,
+        },
+        // The client the upstream Roku app uses. Kept in the ladder so it is picked up
+        // automatically if it opens back up on a given network.
+        "tv" => ClientProfile {
+            context: json!({
+                "client": {
+                    "clientName": "TVHTML5",
+                    "clientVersion": "7.20250101.10.00",
+                    "hl": "en",
+                    "gl": "US",
+                }
+            }),
+            ua: "Mozilla/5.0 (PlayStation; PlayStation 4/12.00) AppleWebKit/605.1.15 \
+                 (KHTML, like Gecko) Version/16.0 Safari/605.1.15",
+            header_name: "7",
+            header_version: "7.20250101.10.00".to_string(),
+            web_family: false,
+        },
+        "web_embedded" => ClientProfile {
+            context: json!({
+                "client": {
+                    "clientName": "WEB_EMBEDDED_PLAYER",
+                    "clientVersion": "1.20260907.00.00",
+                    "hl": "en",
+                    "gl": "US",
+                },
+                "thirdParty": { "embedUrl": "https://www.youtube.com" }
+            }),
+            ua: WEB_UA,
+            header_name: "56",
+            header_version: "1.20260907.00.00".to_string(),
+            web_family: true,
+        },
+        _ => ClientProfile {
+            context: web_context(identity),
+            ua: WEB_UA,
+            header_name: "1",
+            header_version: identity.web_version.clone(),
+            web_family: true,
+        },
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InnertubeRequest {
+    /// One of ALLOWED_ENDPOINTS.
+    pub endpoint: String,
+    /// "ios" for playback, "web" for everything else.
+    #[serde(default)]
+    pub client: Option<String>,
+    /// Endpoint-specific fields (videoId, query, browseId, params, continuation...).
+    #[serde(default)]
+    pub payload: Option<Value>,
+    /// A YouTube TV access token, when the user has signed in.
+    ///
+    /// This is what makes TVHTML5 usable: signed out it answers LOGIN_REQUIRED or
+    /// "The page needs to be reloaded" no matter what else is sent.
+    #[serde(default)]
+    pub access_token: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InnertubeResponse {
+    pub status: u16,
+    pub ok: bool,
+    pub body: String,
+    pub elapsed_ms: u64,
+    /// Echoed so the frontend can surface which client answered when debugging.
+    pub client: String,
+}
+
+#[tauri::command]
+pub async fn yt_innertube(
+    state: State<'_, crate::AppState>,
+    req: InnertubeRequest,
+) -> Result<InnertubeResponse, String> {
+    let endpoint = req.endpoint.trim().to_ascii_lowercase();
+    if !ALLOWED_ENDPOINTS.contains(&endpoint.as_str()) {
+        return Err(format!("endpoint not allowed: {endpoint}"));
+    }
+
+    let identity = identity(&state.innertube, &state.http).await;
+    let client_key = req.client.as_deref().unwrap_or("web").to_ascii_lowercase();
+    let mut profile = profile_for(&client_key, &identity);
+
+    // Upstream Playlet sends the visitor id only when it is NOT using an access token
+    // (`useAccessToken` in PlayerEndpoint.bs). Sending both looks like two different
+    // identities for one request, so follow the same rule.
+    let authenticated = req
+        .access_token
+        .as_deref()
+        .is_some_and(|token| !token.is_empty());
+    if authenticated {
+        if let Some(client) = profile.context.get_mut("client") {
+            if let Some(map) = client.as_object_mut() {
+                map.remove("visitorData");
+            }
+        }
+        profile.web_family = false;
+    }
+
+    let mut body = match req.payload {
+        Some(Value::Object(map)) => Value::Object(map),
+        _ => json!({}),
+    };
+    body["context"] = profile.context.clone();
+
+    let ua = profile.ua;
+    let client_name = profile.header_name;
+    let client_version = profile.header_version.clone();
+
+    // The re-exported reqwest is built without the `json` feature, so serialize here.
+    let payload = serde_json::to_string(&body).map_err(|e| format!("bad payload: {e}"))?;
+
+    let url = format!("{INNERTUBE_BASE}{endpoint}");
+    let mut request = state
+        .http
+        .post(&url)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::USER_AGENT, ua)
+        .header(reqwest::header::ORIGIN, YOUTUBE_ORIGIN)
+        .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .header("X-YouTube-Client-Name", client_name)
+        .header("X-YouTube-Client-Version", client_version)
+        .timeout(Duration::from_secs(30))
+        .body(payload);
+
+    // The visitor id only applies to web-family clients, and never alongside a token.
+    if profile.web_family {
+        if let Some(visitor) = &identity.visitor_data {
+            request = request.header("X-Goog-Visitor-Id", visitor);
+        }
+    }
+
+    if let Some(token) = req.access_token.as_deref().filter(|t| !t.is_empty()) {
+        request = request.header(reqwest::header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+
+    let started = Instant::now();
+    let mut response = request
+        .send()
+        .await
+        .map_err(|e| format!("innertube request failed: {e}"))?;
+
+    let status = response.status();
+
+    // Channel browse responses run to several megabytes, so read with a cap rather
+    // than trusting the payload to be small.
+    let mut buf: Vec<u8> = Vec::with_capacity(128 * 1024);
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| format!("innertube read failed: {e}"))?
+    {
+        if buf.len() + chunk.len() > MAX_BODY_BYTES {
+            return Err("innertube response too large".into());
+        }
+        buf.extend_from_slice(&chunk);
+    }
+
+    Ok(InnertubeResponse {
+        status: status.as_u16(),
+        ok: status.is_success(),
+        body: String::from_utf8_lossy(&buf).into_owned(),
+        elapsed_ms: started.elapsed().as_millis() as u64,
+        client: client_key,
+    })
+}
+
+/// Fetch a player response for one video, for internal callers.
+///
+/// The media proxy uses this to mint a replacement stream URL when googlevideo
+/// retires the current one; see `media::refresh_stream_url`.
+pub async fn player_response(
+    state: &crate::AppState,
+    video_id: &str,
+    client: &str,
+) -> Result<Value, String> {
+    let identity = identity(&state.innertube, &state.http).await;
+    let profile = profile_for(client, &identity);
+
+    let body = json!({
+        "context": profile.context,
+        "videoId": video_id,
+        "contentCheckOk": true,
+        "racyCheckOk": true,
+    });
+    let payload = serde_json::to_string(&body).map_err(|e| format!("bad payload: {e}"))?;
+
+    let response = state
+        .http
+        .post(format!("{INNERTUBE_BASE}player"))
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::USER_AGENT, profile.ua)
+        .header(reqwest::header::ORIGIN, YOUTUBE_ORIGIN)
+        .header("X-YouTube-Client-Name", profile.header_name)
+        .header("X-YouTube-Client-Version", profile.header_version.clone())
+        .timeout(Duration::from_secs(20))
+        .body(payload)
+        .send()
+        .await
+        .map_err(|e| format!("player request failed: {e}"))?;
+
+    let text = response
+        .text()
+        .await
+        .map_err(|e| format!("player read failed: {e}"))?;
+    serde_json::from_str(&text).map_err(|e| format!("player parse failed: {e}"))
+}
+
+/// Pull the stream URL for one itag out of a player response.
+pub fn stream_url_for_itag(player: &Value, itag: &str) -> Option<String> {
+    let streaming = player.get("streamingData")?;
+    for key in ["adaptiveFormats", "formats"] {
+        if let Some(list) = streaming.get(key).and_then(|v| v.as_array()) {
+            for format in list {
+                let matches = format
+                    .get("itag")
+                    .map(|v| match v {
+                        Value::Number(n) => n.to_string() == itag,
+                        Value::String(s) => s == itag,
+                        _ => false,
+                    })
+                    .unwrap_or(false);
+                if matches {
+                    if let Some(url) = format.get("url").and_then(|v| v.as_str()) {
+                        return Some(url.to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Force a refresh of the scraped client identity. Useful when browse starts
+/// returning 400, which is the symptom of a stale client version.
+#[tauri::command]
+pub async fn yt_refresh_identity(state: State<'_, crate::AppState>) -> Result<String, String> {
+    let fresh = fetch_identity(&state.http).await;
+    let version = fresh.web_version.clone();
+    state.innertube.store(fresh);
+    Ok(version)
+}

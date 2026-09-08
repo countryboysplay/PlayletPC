@@ -1,0 +1,357 @@
+[
+  {
+    "displayText": "Playback",
+    "key": "playback",
+    "description": "Playback preferences",
+    "children": [
+      {
+        "displayText": "Autoplay",
+        "key": "playback.autoplay",
+        "description": "When you finish a video, another plays automatically",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      {
+        "displayText": "Preferred quality",
+        "key": "playback.preferred_quality",
+        "description": "Preferred video quality",
+        "type": "string",
+        "defaultValue": "auto",
+        "visibility": "tv",
+        "rokuComponent": "EditQualityControl"
+      },
+      {
+        "displayText": "Preferred quality",
+        "key": "playback.preferred_quality",
+        "description": "Preferred video quality",
+        "visibility": "web",
+        "svelteComponent": "EditQualityControl"
+      },
+      {
+        "displayText": "Disable auto-dubbed audio",
+        "key": "playback.disable_auto_dubbed",
+        "description": "Remove AI-generated dubbed audio tracks.",
+        "type": "boolean",
+        "defaultValue": false
+      }
+    ]
+  },
+  {
+    "displayText": "Backend",
+    "key": "backend",
+    "description": "Backend preferences",
+    "children": [
+      {
+        "displayText": "Selected backend",
+        "key": "backend.selected",
+        "description": "The backend used for browsing and playing videos.",
+        "type": "radio",
+        "defaultValue": "playlet",
+        "options": [
+          {
+            "displayText": "Playlet (local)",
+            "value": "playlet"
+          },
+          {
+            "displayText": "Invidious",
+            "value": "invidious"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "displayText": "Content Feed",
+    "key": "content_feed",
+    "description": "Feed preferences",
+    "children": [
+      {
+        "displayText": "Disable Shorts",
+        "key": "content_feed.disable_shorts",
+        "description": "Disable short videos.",
+        "type": "boolean",
+        "defaultValue": false
+      }
+    ]
+  },
+  {
+    "displayText": "Invidious",
+    "key": "invidious",
+    "description": "Invidious preferences",
+    "children": [
+      {
+        "displayText": "Instance",
+        "key": "invidious.instance",
+        "description": "Invidious instance to use. Example: https://example.com. Find more instances at %INVIDIOUS_PUBLIC_INSTANCES%",
+        "type": "string",
+        "visibility": "web"
+      },
+      {
+        "displayText": "Instance",
+        "key": "invidious.instance",
+        "description": "Invidious instance to use. Example: https://example.com",
+        "visibility": "tv",
+        "rokuComponent": "InvidiousInstanceControl"
+      },
+      {
+        "displayText": "Proxy videos",
+        "key": "invidious.proxy_videos",
+        "description": "Proxy videos through the Invidious server. This is useful if videos are geoblocked.",
+        "type": "radio",
+        "defaultValue": "if_needed",
+        "options": [
+          {
+            "displayText": "Always",
+            "value": "always"
+          },
+          {
+            "displayText": "Only if needed",
+            "value": "if_needed"
+          },
+          {
+            "displayText": "Never",
+            "value": "never"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "displayText": "SponsorBlock",
+    "key": "sponsorblock",
+    "description": "SponsorBlock preferences",
+    "children": [
+      {
+        "displayText": "Enabled",
+        "key": "sponsorblock.enabled",
+        "description": "Enable SponsorBlock",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      {
+        "displayText": "Show notifications",
+        "key": "sponsorblock.show_notifications",
+        "description": "Show notifications when a segment is skipped",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      {
+        "displayText": "Categories",
+        "key": "sponsorblock.categories",
+        "description": "Configure which segments to skip",
+        "type": "assocarray",
+        "visibility": "tv",
+        "rokuComponent": "SponsorBlockCategoriesControl",
+        "defaultValue": {
+          "sponsor": {
+            "option": "auto_skip"
+          },
+          "selfpromo": {
+            "option": "manual_skip"
+          },
+          "interaction": {
+            "option": "manual_skip"
+          },
+          "poi_highlight": {
+            "option": "show_in_seekbar"
+          },
+          "intro": {
+            "option": "manual_skip"
+          },
+          "outro": {
+            "option": "manual_skip"
+          },
+          "preview": {
+            "option": "manual_skip"
+          },
+          "hook": {
+            "option": "manual_skip"
+          },
+          "filler": {
+            "option": "manual_skip"
+          },
+          "music_offtopic": {
+            "option": "manual_skip"
+          }
+        }
+      },
+      {
+        "displayText": "Categories",
+        "key": "sponsorblock.categories",
+        "description": "Configure which segments to skip",
+        "visibility": "web",
+        "svelteComponent": "SponsorBlockCategoriesControl"
+      }
+    ]
+  },
+  {
+    "displayText": "Search History",
+    "key": "search_history",
+    "description": "Search history preferences",
+    "children": [
+      {
+        "displayText": "Enable search history",
+        "key": "search_history.enabled",
+        "description": "Enable search history",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      {
+        "displayText": "Clear search history",
+        "key": "search_history.clear_search_history",
+        "description": "Clear search history from Playlet. This affects the search suggestions. This does not affect the watch history on Invidious.",
+        "visibility": "web",
+        "svelteComponent": "ClearSearchHistoryControl"
+      },
+      {
+        "displayText": "Clear search history",
+        "key": "search_history.clear_search_history",
+        "description": "Clear search history from Playlet. This affects the search suggestions. This does not affect the watch history on Invidious.",
+        "visibility": "tv",
+        "rokuComponent": "ClearSearchHistoryControl"
+      },
+      {
+        "displayText": "Search keyboard language",
+        "key": "search.keyboard_language",
+        "description": "Preferred language for the on-screen keyboard.",
+        "visibility": "off",
+        "type": "radio",
+        "defaultValue": "en_US",
+        "options": [
+          {
+            "displayText": "English",
+            "value": "en_US"
+          },
+          {
+            "displayText": "Deutsch",
+            "value": "de_DE"
+          },
+          {
+            "displayText": "Español",
+            "value": "es_ES"
+          },
+          {
+            "displayText": "Français",
+            "value": "fr_FR"
+          },
+          {
+            "displayText": "Português",
+            "value": "pt_BR"
+          },
+          {
+            "displayText": "Русский",
+            "value": "ru_RU"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "displayText": "Miscellaneous",
+    "key": "misc",
+    "description": "Misc. preferences",
+    "children": [
+      {
+        "displayText": "Edit home screen",
+        "key": "misc.home_screen_layout",
+        "description": "Enable/disable and reorder sections on the home screen",
+        "type": "array",
+        "defaultValue": [
+          {
+            "id": "subscriptions",
+            "enabled": true
+          },
+          {
+            "id": "recommended",
+            "enabled": true
+          },
+          {
+            "id": "popular",
+            "enabled": true
+          },
+          {
+            "id": "playlists",
+            "enabled": true
+          },
+          {
+            "id": "watch_history",
+            "enabled": true
+          },
+          {
+            "id": "trending_livestreams",
+            "enabled": true
+          },
+          {
+            "id": "trending_gaming",
+            "enabled": true
+          }
+        ],
+        "visibility": "tv",
+        "rokuComponent": "EditHomeScreenControl"
+      },
+      {
+        "displayText": "Edit home screen",
+        "key": "misc.home_screen_layout",
+        "description": "Enable/disable and reorder sections on the home screen",
+        "visibility": "web",
+        "svelteComponent": "EditHomeScreenControl"
+      },
+      {
+        "displayText": "Queue notifications",
+        "key": "misc.queue_notifications",
+        "description": "Show a notification when a video is added to the queue",
+        "type": "boolean",
+        "defaultValue": true
+      }
+    ]
+  },
+  {
+    "displayText": "Developer",
+    "key": "dev",
+    "description": "Developer preferences",
+    "children": [
+      {
+        "displayText": "Playlet Library version",
+        "key": "dev.playlet_lib_version",
+        "description": "The version of Playlet Lib to use. These correspond to tagged releases on Github. Releases that do not have a playlet-lib.zip file are disabled.",
+        "visibility": "web",
+        "svelteComponent": "PlayletLibVersionControl"
+      },
+      {
+        "displayText": "Clear cache",
+        "key": "dev.clear_cache",
+        "description": "Clear cache from cachefs: and tmp:",
+        "visibility": "web",
+        "svelteComponent": "ClearCacheControl"
+      },
+      {
+        "displayText": "Clear cache",
+        "key": "dev.clear_cache",
+        "description": "Clear cache from cachefs: and tmp:",
+        "visibility": "tv",
+        "rokuComponent": "ClearCacheControl"
+      },
+      {
+        "displayText": "Mint PoToken",
+        "key": "dev.mint_potoken",
+        "description": "Mint a PoToken for the current identity.",
+        "visibility": "off",
+        "svelteComponent": "MintPoTokenControl"
+      },
+      {
+        "displayText": "Clear PoTokens",
+        "key": "dev.clear_potokens",
+        "description": "Clear all stored PoTokens.",
+        "visibility": "off",
+        "svelteComponent": "ClearPoTokensControl"
+      },
+      {
+        "displayText": "Enable Diagnostics",
+        "key": "dev.diagnostics.enabled",
+        "description": "Help improve Playlet by enabling diagnostics. This will send anonymous diagnotics data to the developer.",
+        "type": "boolean",
+        "defaultValue": true
+      }
+    ]
+  }
+]
