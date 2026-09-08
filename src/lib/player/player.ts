@@ -648,10 +648,16 @@ export class PlayletPlayer {
           fuzzFactor: 0.5,
           timeout: 20000,
         },
-        // Bigger forward buffer than the shaka default: Invidious segment
-        // throughput is spiky, and buffer depth is the cheapest rebuffer
-        // insurance we have.
-        bufferingGoal: live ? 20 : 40,
+        // A big forward buffer is the cheapest rebuffer insurance there is, and
+        // Invidious segment throughput is spiky enough to want one. But the
+        // server stops serving at ~60 seconds of media (docs/STATE-AND-NEXT.md
+        // §3), and every second we buffer ahead is a second nearer that wall:
+        // reaching forward 40s collides with it at roughly a 20s playhead,
+        // reaching forward 20s at roughly a 40s playhead.
+        //
+        // A mitigation, not a fix. Put this back to 40 once playback is
+        // genuinely uncapped.
+        bufferingGoal: 20,
         rebufferingGoal: live ? 4 : 2,
         bufferBehind: 60,
         stallEnabled: true,

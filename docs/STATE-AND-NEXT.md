@@ -199,25 +199,54 @@ Two corrections to earlier notes in this document:
   live values scraped from the homepage (`INNERTUBE_CLIENT_VERSION`, currently
   `2.20260907.06.00`, and STS `20702` from `base.js`) both return `OK` with a full
   `streamingData` and a `serverAbrStreamingUrl`.
-- Their SABR URLs then 403 for a specific, well-understood reason: the WEB URL carries
-  **`n=...`**, the throttling parameter, and `ns` is listed in `sparams` so it is signed.
-  It must be descrambled by the `nsig` function inside `base.js`. The IOS URL has no `n`
-  parameter at all, which is exactly why IOS works directly.
+- Their SABR URLs 403 with an **empty body**, and it is *not* the `n` parameter. An
+  earlier revision of this document claimed it was; that was a guess and it is wrong.
+  Tested directly: the 403 is byte-identical with `n` as issued, with `n` deleted, and
+  with `n` replaced by garbage. Note `n` is not listed in `sparams`, so it is not
+  signature-protected either. Adding `pot=` as a query parameter changes nothing (`pot`
+  is likewise absent from `sparams`). No `nsig` work is warranted on this evidence.
+
+### Full client sweep — no identity is uncapped
+
+Every client that might plausibly be less restricted, probed at 30 s (control) and 120 s
+(past the wall), each with and without a PoToken (`tools/sabr/client-sweep.mjs`):
+
+| client | `/player` | SABR 30 s | SABR 120 s |
+|---|---|---|---|
+| IOS | OK | 897 KiB (status 2) | empty (status 3) |
+| MWEB | OK | HTTP 403 | HTTP 403 |
+| WEB | OK | HTTP 403 | HTTP 403 |
+| ANDROID_VR | LOGIN_REQUIRED — *"Sign in to confirm you're not a bot"* | — | — |
+| WEB_EMBEDDED_PLAYER | ERROR — *"This video is unavailable"* | — | — |
+| TVHTML5_SIMPLY_EMBEDDED_PLAYER | ERROR — *"YouTube is no longer supported in this app"* | — | — |
+| WEB_CREATOR | LOGIN_REQUIRED — *"Please sign in"* | — | — |
+
+**IOS is the only client that serves media at all, and it is capped at 60 s.** Adding a
+PoToken changed nothing anywhere in this table.
 
 ### Where that leaves the next step
 
-The honest summary: transport is solved, attestation is not. Three candidates, best first.
+The honest summary: **transport is solved, attestation is not, and no reachable client
+identity avoids the gate.** This is the ceiling for a public, unattested desktop app.
 
-1. **WEB client end to end.** This is the only client whose attestation we can already
-   mint. It now returns playable responses; the remaining blocker is `n`-parameter
-   descrambling, which is a known, bounded problem (extract `nsig` from `base.js` and
-   evaluate it) that `yt-dlp` and `youtubei.js` both solve. If a descrambled `n` clears
-   the 403, then WEB + a WEB PoToken is a complete, account-free path — and unlike
-   everything in §4, every piece of it is already in hand. **Verify by playing past 60 s,
-   not by a request succeeding.**
-2. **Accept 60 s is wrong; do not ship it.** Worth stating plainly so nobody mistakes the
-   current state for progress.
-3. **TVHTML5 remains gated** on `livingRoomPoTokenId` (§4) and is still not recommended.
+1. **Do not ship 60-second playback.** Stating it plainly so nobody mistakes the current
+   state for progress. Browsing is genuinely good; playback is not usable.
+2. **The gate is a client-matched device attestation.** Playlet on Roku clears it because
+   it holds one — `livingRoomPoTokenId`, minted by its own backend
+   (`PLAYLET_SUPPORT_SERVER`, not in the public repo, §4). That is the difference, and it
+   is not something this app can mint. Worth confirming with upstream rather than
+   re-deriving it: an honest question to iBicha about what a third-party client is
+   expected to do here would likely save more time than any further probing.
+3. **Exhausted, do not repeat:** every transport, every client identity, both PoToken
+   slots, sign-in, and waiting. §4 has the full list.
+
+Two things that would still be worth doing regardless of how attestation resolves:
+
+- Port the UMP parser and ABR request builder into `src/` anyway. They are correct, tested
+  against real captures, and will be needed the moment the gate opens — SABR is what
+  YouTube serves now, and the legacy path is being retired.
+- Keep `tools/sabr/` runnable. It is the cheapest way to re-test whether the boundary has
+  moved, which it may, since this is policy rather than protocol.
 
 Note for whoever picks this up: Playlet on Roku plays full videos whether or not you are
 signed in, so an account is definitively not the missing ingredient. Sign-in is a

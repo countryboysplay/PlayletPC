@@ -15,7 +15,7 @@
 //! It is a proxy, not an open relay: only YouTube media hosts are reachable, and only
 //! GET/HEAD.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -45,11 +45,13 @@ const FORWARD_REQUEST_HEADERS: &[&str] = &["accept", "accept-encoding", "if-none
 /// Slice returned when the caller did not ask for a bounded range.
 const DEFAULT_CHUNK_BYTES: u64 = 2 * 1024 * 1024;
 
-/// How far into a format googlevideo will serve before refusing outright.
-///
-/// Measured 2026-09-08: sequential 2MB ranges succeed to exactly 20MB and every read
-/// beyond that is 403, on a fresh URL as well as the original. See docs/INNERTUBE.md.
-const STREAM_BUDGET_BYTES: u64 = 20 * 1024 * 1024;
+// There is no byte budget. An earlier version of this file assumed a 20MB cap,
+// because that is where itag 137 happened to stop -- but the limit is ~60 SECONDS
+// of media, so the byte offset it lands on scales with bitrate. At 144p it is
+// about 1MB, at 4K about 40MB. A byte threshold is therefore wrong at every
+// bitrate but one, and made the proxy re-request the player for every low-bitrate
+// segment past the wall. `StreamUrlCache::capped` learns the boundary instead.
+// See docs/STATE-AND-NEXT.md §3.
 
 /// The start offset of the range we are about to request.
 fn range_start(headers: &[(String, String)]) -> Option<u64> {
@@ -157,13 +159,31 @@ fn itag_of(url: &Url) -> Option<String> {
 /// without this every one of them would mint its own player request.
 pub struct StreamUrlCache {
     entries: Mutex<HashMap<String, (String, Instant)>>,
+    /// Keys whose stream is known to be past the serve limit, so minting a fresh
+    /// URL is pointless. Learned empirically -- see `mark_capped`.
+    capped: Mutex<HashSet<String>>,
 }
 
 impl StreamUrlCache {
     pub fn new() -> Self {
         Self {
             entries: Mutex::new(HashMap::new()),
+            capped: Mutex::new(HashSet::new()),
         }
+    }
+
+    fn is_capped(&self, key: &str) -> bool {
+        self.capped.lock().unwrap().contains(key)
+    }
+
+    /// Record that a freshly minted URL was refused at this offset too, so later
+    /// segments on the same stream skip the refresh entirely.
+    fn mark_capped(&self, key: &str) {
+        let mut capped = self.capped.lock().unwrap();
+        if capped.len() > 64 {
+            capped.clear();
+        }
+        capped.insert(key.to_string());
     }
 
     fn get(&self, key: &str) -> Option<String> {
@@ -191,7 +211,7 @@ impl StreamUrlCache {
     }
 }
 
-/// A refreshed URL has the same ~20MB budget, so it is only reused briefly.
+/// A refreshed URL has the same ~60-second budget, so it is only reused briefly.
 const REFRESH_TTL: Duration = Duration::from_secs(60);
 
 pub fn handle<R: tauri::Runtime>(
@@ -302,12 +322,17 @@ pub fn handle<R: tauri::Runtime>(
         // A 403 has two distinct causes, and only one of them is recoverable:
         //
         //   * The URL expired (they last a few hours). A fresh URL fixes it.
-        //   * The read is past googlevideo's ~20MB-per-format cap. Measured: a brand
-        //     new URL is ALSO 403 at that offset, while the same new URL serves
-        //     0-2MB fine. Re-requesting the player there is pure waste, so don't.
+        //   * The read is past the ~60-second serve limit. Measured: a brand new
+        //     URL is ALSO 403 at that offset, while the same new URL serves 0-2MB
+        //     fine. Re-requesting the player there is pure waste, so don't.
         //
-        // The offset separates the two cases well enough to avoid pointless churn.
-        let past_cap = range_start(&forwarded).is_some_and(|start| start >= STREAM_BUDGET_BYTES);
+        // We cannot tell these apart from the byte offset -- 60 seconds is ~1MB at
+        // 144p and ~40MB at 4K. So try the refresh once, and if the fresh URL is
+        // refused at the same offset, remember that and stop trying for this stream.
+        let past_cap = cache_key
+            .as_deref()
+            .is_some_and(|key| state.stream_urls.is_capped(key));
+
         if upstream.status().as_u16() == 403 && !past_cap {
             if let Some(key) = cache_key.as_deref() {
                 state.stream_urls.invalidate(key);
@@ -318,6 +343,12 @@ pub fn handle<R: tauri::Runtime>(
                         if retry.status().is_success() {
                             if let Some(key) = cache_key {
                                 state.stream_urls.put(key, fresh);
+                            }
+                        } else if retry.status().as_u16() == 403 {
+                            // A brand new URL refused at the same offset: this is
+                            // the serve limit, not expiry. Don't refresh again.
+                            if let Some(key) = cache_key.as_deref() {
+                                state.stream_urls.mark_capped(key);
                             }
                         }
                         upstream = retry;
@@ -387,7 +418,7 @@ async fn refresh_stream_url(
 
 #[cfg(test)]
 mod tests {
-    use super::{closed_range, range_start, STREAM_BUDGET_BYTES};
+    use super::{closed_range, range_start, StreamUrlCache};
 
     #[test]
     fn closed_ranges_pass_through() {
@@ -417,14 +448,24 @@ mod tests {
         assert_eq!(closed_range(Some("bytes=0-99,200-299")), "bytes=0-99");
     }
     #[test]
-    fn range_start_is_parsed_for_cap_detection() {
+    fn range_start_is_parsed() {
         let headers = vec![("range".to_string(), "bytes=20971520-23068671".to_string())];
         assert_eq!(range_start(&headers), Some(20_971_520));
-        assert!(range_start(&headers).is_some_and(|s| s >= STREAM_BUDGET_BYTES));
 
         let early = vec![("range".to_string(), "bytes=0-2097151".to_string())];
-        assert!(range_start(&early).is_some_and(|s| s < STREAM_BUDGET_BYTES));
+        assert_eq!(range_start(&early), Some(0));
 
         assert_eq!(range_start(&[]), None);
+    }
+
+    #[test]
+    fn capped_streams_are_remembered_so_the_url_is_not_refreshed_again() {
+        let cache = StreamUrlCache::new();
+        assert!(!cache.is_capped("vid:137"));
+
+        cache.mark_capped("vid:137");
+        assert!(cache.is_capped("vid:137"));
+        // The verdict is per stream, not global: another format is unaffected.
+        assert!(!cache.is_capped("vid:140"));
     }
 }

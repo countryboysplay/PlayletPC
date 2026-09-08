@@ -12,12 +12,16 @@ Requires only Node 24+ and network access. Run from this directory.
 | `stream.mjs` | The full streaming loop — advances `player_time_ms`, reports `buffered_ranges`, passes the playback cookie back. Prints seconds of media accumulated per track. |
 | `seek-probe.mjs` | Fresh stateless request at each of several playback positions. This is what pins the boundary to exactly 60.000 s. |
 | `client-matrix.mjs` | Every client (WEB/IOS/ANDROID/MWEB) × bare / `visitorData` / `visitorData`+PoToken. Scrapes the live `INNERTUBE_CLIENT_VERSION` and signature timestamp. |
+| `client-sweep.mjs` | Wider identity sweep, including the embedded and VR clients. This is what established that IOS is the only client serving media at all, and that it is capped. |
+| `web-403.mjs` | Isolates the WEB 403: `n` as-issued vs deleted vs mangled, and `pot` as a query parameter. All identical, which is what ruled out the `n` parameter. |
 
 ```bash
 node capture.mjs      aqz-KE-bpKQ
 node stream.mjs       aqz-KE-bpKQ 300
 node seek-probe.mjs   aqz-KE-bpKQ 0,30,55,59,60,120,300
 node client-matrix.mjs aqz-KE-bpKQ 30,120
+node client-sweep.mjs  aqz-KE-bpKQ 30,120
+node web-403.mjs       aqz-KE-bpKQ
 ```
 
 `stream.mjs` and `client-matrix.mjs` optionally take a PoToken minter:
