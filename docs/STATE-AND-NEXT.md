@@ -34,6 +34,30 @@ npm run check                # svelte-check, 165 files
 cd src-tauri && cargo test --bin playlet-desktop   # 10 Rust tests
 ```
 
+## 2a. Open: playback tops out at 1080p
+
+Reported 2026-09-09 on a second machine, after the playback fixes landed. Not yet
+investigated - recording it so the next session does not start from scratch.
+
+What is already known:
+- `DEFAULTS.maxHeight` is `null` and `preferredCodec` is `'auto'`, so the app is not
+  capping it. Verified in the shipped v0.1.0 build.
+- VISIONOS *does* offer higher formats: a sample player response listed itag 308
+  (1440p60 VP9), 315 (2160p60 VP9), 400/401 (AV1 equivalents).
+- So the ceiling is being applied somewhere between the player response and shaka's
+  variant choice.
+
+Candidates worth checking, in rough order of likelihood - none confirmed:
+1. `settings.preferredQuality` may be set to a fixed value in the user's settings,
+   which `VideoPlayer.svelte` passes straight into the player as `quality`.
+2. `sources.ts::maxAdaptiveHeight(video)` sets `maxHeight` on the DASH candidate.
+3. `innertube-dash.ts` may be dropping the higher representations when building the
+   MPD - check `result.skipped`.
+4. shaka ABR may simply be choosing 1080p as correct for the window size.
+
+Check them in that order rather than guessing; (1) and (3) are both observable
+without running the app.
+
 ## 2. What works today
 
 - **Browsing is complete and solid.** Search (with protobuf-encoded filters), channels
