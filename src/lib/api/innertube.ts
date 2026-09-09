@@ -112,6 +112,18 @@ class TtlCache {
 const PLAYER_TTL_SECONDS = 20 * 60
 const BROWSE_TTL_SECONDS = 5 * 60
 
+/**
+ * True when a playback failure looks like a missing scraped identity rather than a
+ * genuine refusal.
+ *
+ * YouTube phrases it as a sign-in prompt, which is misleading: an account makes no
+ * difference. What is missing is the visitor id header, and that is recoverable.
+ */
+function isMissingIdentity(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err)
+  return /LOGIN_REQUIRED/i.test(message) || /not a bot/i.test(message)
+}
+
 export class InnertubeClient implements Backend {
   readonly kind: BackendKind = 'playlet'
   /** Empty: there is no instance, so nothing derived from one may be attempted. */
@@ -359,7 +371,28 @@ export class InnertubeClient implements Backend {
    * return formats whose URLs are all ciphered, which this app cannot decipher. Both
    * mean "try the next client", and only the last failure is reported.
    */
+  /**
+   * Fetch a playable video, refreshing the scraped identity once if every client
+   * claims the request is unauthenticated.
+   *
+   * `LOGIN_REQUIRED - Sign in to confirm you're not a bot` from EVERY client does not
+   * mean the video needs an account. It is what YouTube answers when the request
+   * carries no `X-Goog-Visitor-Id`, and the visitor id is scraped. If that scrape ever
+   * came back empty, the app kept sending requests without it - browsing still worked,
+   * so the app looked fine while every single video failed to load. Re-scraping and
+   * retrying once turns a dead app into a hiccup.
+   */
   private async fetchPlayable(videoId: string): Promise<VideoDetails> {
+    try {
+      return await this.tryPlayerLadder(videoId)
+    } catch (err) {
+      if (!isMissingIdentity(err)) throw err
+      if (invokeFn) await invokeFn('yt_refresh_identity').catch(() => undefined)
+      return await this.tryPlayerLadder(videoId)
+    }
+  }
+
+  private async tryPlayerLadder(videoId: string): Promise<VideoDetails> {
     const payload = { videoId, contentCheckOk: true, racyCheckOk: true }
     let lastError: unknown = null
 

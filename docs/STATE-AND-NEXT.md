@@ -81,6 +81,55 @@ and all were checkable. The real cause was one layer lower than any of them, in 
 browser API contract, and the only thing that found it was asking the engine directly
 what it supported instead of reasoning about what it should support.
 
+## 2b. SOLVED: every video failed with "Could not load this video"
+
+Reported and fixed 2026-09-09, on a machine where browsing worked perfectly.
+
+Every playback client answered the same thing:
+
+```
+visionos / android_vr / tv  ->  LOGIN_REQUIRED "Sign in to confirm you're not a bot"
+web_embedded                ->  ERROR 152
+```
+
+**It was not YouTube blocking the machine, and it had nothing to do with being signed
+in.** Replaying the app's exact request shape from Node, on the same machine and IP:
+
+| request | result |
+|---|---|
+| the app's shape **with** `X-Goog-Visitor-Id` | `OK`, 28 formats, all with direct URLs |
+| the app's shape **without** it | `LOGIN_REQUIRED` - byte-identical to the failure |
+
+The app was sending no visitor id at all, because `fetch_identity` **cannot fail
+loudly**: on any network error it falls back to `visitor_data: None`, and that result
+was then cached by `store()` exactly like a good identity - for `IDENTITY_TTL`, which
+is **six hours**. Nothing re-scraped, because the only refresh trigger was an HTTP 400
+from browse and `LOGIN_REQUIRED` arrives as HTTP 200.
+
+So a single transient blip at startup broke playback for the rest of the day, while
+browsing carried on working and made the app look healthy.
+
+**Two fixes:**
+
+1. `InnertubeState::cached()` now treats an identity with no visitor id as a *failed
+   scrape*, expiring it after `IDENTITY_RETRY_TTL` (60s) instead of six hours. A good
+   identity still caches for the full TTL.
+2. `InnertubeClient.fetchPlayable()` refreshes the identity and retries the ladder once
+   when every client reports `LOGIN_REQUIRED`. YouTube's "sign in" wording is
+   misleading - an account changes nothing; the missing piece is a scraped header.
+
+Rust regression tests: `a_visitorless_identity_is_not_cached_for_the_full_ttl` and
+`visionos_without_a_visitor_id_sends_no_header`.
+
+**How it was found, and the lesson:** by attaching to the running app. WebView2 honours
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, so the app can be
+driven and inspected over CDP like any Chrome page. The app's own console showed
+nothing (the error is caught and rendered as UI), and the Tauri IPC returns HTTP 200
+even when the InnerTube body is a refusal - so the failure was invisible from both
+ends. Reading the IPC **response bodies** off `Network.getResponseBody` is what
+actually named it. Keep that technique; it turns this app from a black box into a
+debuggable one.
+
 ## 2. What works today
 
 - **Browsing is complete and solid.** Search (with protobuf-encoded filters), channels
