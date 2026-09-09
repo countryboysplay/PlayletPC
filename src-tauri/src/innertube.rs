@@ -61,6 +61,17 @@ const CONSENT_COOKIES: &str = "SOCS=CAI; PREF=hl=en&tz=UTC";
 /// The scraped identity goes stale; YouTube ships a new web build most days.
 const IDENTITY_TTL: Duration = Duration::from_secs(6 * 60 * 60);
 
+/// How long a *failed* identity scrape is allowed to stick around.
+///
+/// `fetch_identity` cannot fail loudly - it falls back to a hardcoded web version and
+/// `visitor_data: None` - so a single transient network blip at startup used to be
+/// cached like a good identity for the full six hours. Without the visitor id every
+/// playback client answers `LOGIN_REQUIRED - Sign in to confirm you're not a bot`, so
+/// the app looked permanently broken while browsing kept working. Retry these quickly
+/// instead, but not on literally every request, so an offline machine does not refetch
+/// the home page once per call.
+const IDENTITY_RETRY_TTL: Duration = Duration::from_secs(60);
+
 const MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
 
 /// Endpoints the renderer is allowed to reach. Anything else is refused, so a
@@ -88,8 +99,22 @@ impl InnertubeState {
     fn cached(&self) -> Option<Identity> {
         let guard = self.identity.lock().unwrap();
         match guard.as_ref() {
-            Some(id) if id.fetched_at.elapsed() < IDENTITY_TTL => Some(id.clone()),
-            _ => None,
+            // An identity with no visitor id is a failed scrape, not a usable identity.
+            // Expire it fast so the next call retries rather than serving six hours of
+            // LOGIN_REQUIRED.
+            Some(id) => {
+                let ttl = if id.visitor_data.is_some() {
+                    IDENTITY_TTL
+                } else {
+                    IDENTITY_RETRY_TTL
+                };
+                if id.fetched_at.elapsed() < ttl {
+                    Some(id.clone())
+                } else {
+                    None
+                }
+            }
+            None => None,
         }
     }
 
@@ -539,6 +564,64 @@ mod tests {
         assert!(
             !ladder_line.contains("\"ios\""),
             "URL refresh must not fall back to the 60s-capped ios client: {ladder_line}"
+        );
+    }
+
+    /// A failed scrape must not be cached like a good identity.
+    ///
+    /// `fetch_identity` cannot fail loudly - it falls back to `visitor_data: None` -
+    /// and that used to be cached for the full six hours. Without the visitor id every
+    /// playback client answers LOGIN_REQUIRED, so one network blip at startup broke
+    /// playback for the rest of the day while browsing carried on working.
+    #[test]
+    fn a_visitorless_identity_is_not_cached_for_the_full_ttl() {
+        let state = InnertubeState::new();
+
+        // A good identity, scraped just now, is served from cache.
+        state.store(Identity {
+            web_version: "2.0".to_string(),
+            visitor_data: Some("VISITOR".to_string()),
+            fetched_at: Instant::now(),
+        });
+        assert!(state.cached().is_some(), "a fresh good identity should be cached");
+
+        // A failed scrape older than the retry window must NOT be served.
+        state.store(Identity {
+            web_version: "2.0".to_string(),
+            visitor_data: None,
+            fetched_at: Instant::now() - (IDENTITY_RETRY_TTL + Duration::from_secs(1)),
+        });
+        assert!(
+            state.cached().is_none(),
+            "a visitor-less identity must expire after IDENTITY_RETRY_TTL so the next call re-scrapes"
+        );
+
+        // A good identity that old is still perfectly valid.
+        state.store(Identity {
+            web_version: "2.0".to_string(),
+            visitor_data: Some("VISITOR".to_string()),
+            fetched_at: Instant::now() - (IDENTITY_RETRY_TTL + Duration::from_secs(1)),
+        });
+        assert!(
+            state.cached().is_some(),
+            "the short retry window must apply only to failed scrapes"
+        );
+    }
+
+    #[test]
+    fn visionos_without_a_visitor_id_sends_no_header() {
+        // Guards the actual failure mode: the header is attached only when the scrape
+        // produced something, and its absence is exactly what YouTube rejects.
+        let empty = Identity {
+            web_version: "2.0".to_string(),
+            visitor_data: None,
+            fetched_at: Instant::now(),
+        };
+        let profile = profile_for("visionos", &empty);
+        assert!(profile.send_visitor_id, "policy stays on even with nothing to send");
+        assert!(
+            empty.visitor_data.is_none(),
+            "and with no visitor id there is no header - the request YouTube refuses"
         );
     }
 
