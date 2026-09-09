@@ -14,6 +14,9 @@ import { InnertubeClient, isInnertubeAvailable } from '../api/innertube'
 import { FALLBACK_INSTANCES, resolveWorkingInstance, type HealthResult } from '../api/instances'
 import { allowHosts } from '../desktop'
 import { settings } from './settings.svelte'
+import { account } from './account.svelte'
+import { library } from './library.svelte'
+import type { PlaylistSummary } from '../api/types'
 
 export type ConnectionStatus = 'starting' | 'connecting' | 'ready' | 'offline'
 
@@ -25,6 +28,14 @@ class Session {
   failedOverFrom = $state<string | null>(null)
   /** Set when the requested backend was unavailable and the app fell back. */
   backendNotice = $state<string | null>(null)
+
+  /** Playlists saved on the signed-in YouTube account; empty when signed out. */
+  accountPlaylists = $state<PlaylistSummary[]>([])
+  accountSyncing = $state(false)
+  accountSyncError = $state<string | null>(null)
+  /** How many subscriptions the last sync added that were not already local. */
+  accountSubsAdded = $state(0)
+  private accountSyncedAt: number | null = null
 
   private client: Backend | null = null
 
@@ -111,6 +122,61 @@ class Session {
     await settings.set('backend.selected', kind)
     this.client = null
     await this.connect()
+  }
+
+  /**
+   * Pull the signed-in account's subscriptions and playlists into the app.
+   *
+   * Subscriptions are MERGED into the local library rather than replacing it, so the
+   * existing Subscriptions page, the Home feed and the channel "Subscribed" state all
+   * light up without any of them needing to know an account exists. Playlists are held
+   * here because there is no local equivalent to merge them into.
+   *
+   * Only the direct YouTube backend can do this - the account token is a YouTube
+   * token, and Invidious has its own separate account model. Failure is non-fatal and
+   * never blocks startup: a signed-in user with a dead network still gets their local
+   * library.
+   */
+  async syncAccount(opts: { force?: boolean } = {}): Promise<void> {
+    const client = this.client
+    if (!(client instanceof InnertubeClient) || !account.isSignedIn) {
+      this.accountPlaylists = []
+      return
+    }
+    if (this.accountSyncing) return
+    if (this.accountSyncedAt !== null && !opts.force) return
+
+    this.accountSyncing = true
+    this.accountSyncError = null
+    try {
+      const [channels, playlists] = await Promise.all([
+        client.subscribedChannels(),
+        client.savedPlaylists()
+      ])
+      if (channels.length > 0) {
+        this.accountSubsAdded = await library.mergeSubscriptions(
+          channels.map(c => ({
+            authorId: c.authorId,
+            author: c.author,
+            thumbnail: c.authorThumbnails.at(-1)?.url
+          }))
+        )
+      }
+      this.accountPlaylists = playlists
+      this.accountSyncedAt = Date.now()
+    } catch (err) {
+      this.accountSyncError = String(err)
+    } finally {
+      this.accountSyncing = false
+    }
+  }
+
+  /** Drop anything pulled from the account, e.g. after signing out. */
+  clearAccountData(): void {
+    this.accountPlaylists = []
+    this.accountSyncedAt = null
+    this.accountSubsAdded = 0
+    this.accountSyncError = null
   }
 
   /** Switch to a specific Invidious instance chosen by the user. */

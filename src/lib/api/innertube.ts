@@ -34,10 +34,18 @@ import {
   mapPlayerResponse,
   PlayabilityError
 } from './innertube-map'
+import {
+  mapSavedPlaylists,
+  mapSubscribedChannels,
+  mapTvPlaylist,
+  mapTvVideoFeed
+} from './innertube-tv-map'
 import type {
   ChannelDetails,
+  ChannelSummary,
   CommentsResponse,
   PlaylistDetails,
+  PlaylistSummary,
   SearchResult,
   VideoDetails,
   VideoSummary
@@ -202,18 +210,34 @@ export class InnertubeClient implements Backend {
   // should check `account.isSignedIn` rather than relying on an empty result.
 
   /**
-   * The account's subscriptions feed - not yet available.
+   * The account's subscriptions feed.
    *
-   * Fetching it needs the TV client, because that is the only client the account token
-   * is valid for, and TV browse responses use living-room renderers (tile/shelf) that
-   * this app's mapper has not been verified against. Calling it over the WEB client
-   * without the token would silently return the signed-out feed, which is empty - a
-   * result indistinguishable from "you have no subscriptions".
+   * Runs on the TV client because that is the only client the account token is valid
+   * for, and TV browse answers in living-room renderers (`tileRenderer`), which is why
+   * this goes through `innertube-tv-map` rather than the WEB mapper.
    *
-   * Returning nothing keeps the home screen on the local subscription list, which works.
+   * Signed out this returns [] rather than the signed-out feed, which would be an
+   * empty list indistinguishable from "you have no subscriptions".
    */
   async subscriptionsFeed(): Promise<VideoSummary[]> {
-    return []
+    if (!account.isSignedIn) return []
+    return mapTvVideoFeed(await this.subscriptionsBrowse())
+  }
+
+  /**
+   * The raw FEsubscriptions response, cached.
+   *
+   * Both the video feed and the subscribed-channel list are read out of this ONE
+   * response (the channels are its tab strip), so it is cached raw rather than per
+   * caller - otherwise opening the app made the same request twice.
+   */
+  private async subscriptionsBrowse(): Promise<unknown> {
+    const key = 'tv:browse:FEsubscriptions'
+    const cached = this.cache.get<unknown>(key)
+    if (cached !== undefined) return cached
+    const json = await this.call('browse', { browseId: 'FEsubscriptions' }, 'tv')
+    this.cache.set(key, json, BROWSE_TTL_SECONDS)
+    return json
   }
 
   popular(opts: { signal?: AbortSignal } = {}): Promise<VideoSummary[]> {
@@ -221,12 +245,33 @@ export class InnertubeClient implements Backend {
   }
 
   /**
-   * Saved playlists and subscribed channels are deliberately absent.
+   * The channels this account subscribes to.
    *
-   * Their signed-in renderer shapes have not been captured against a real account, and
-   * a mapper written from guesswork would fail silently - returning an empty list that
-   * looks like "you have none". Add them once a signed-in response can be inspected.
+   * They are not a list in the feed body - the TV surface renders one `tabRenderer`
+   * per subscribed channel across the top, with the channel id buried in the tab's
+   * protobuf `params`. See `mapSubscribedChannels`.
    */
+  async subscribedChannels(): Promise<ChannelSummary[]> {
+    if (!account.isSignedIn) return []
+    return mapSubscribedChannels(await this.subscriptionsBrowse())
+  }
+
+  /**
+   * The account's saved playlists, including Watch Later and Liked Videos.
+   *
+   * `FEplaylist_aggregation` is the dedicated playlists surface. `FElibrary` also
+   * carries them, but mixed in with history, recommendations and navigation tiles.
+   */
+  async savedPlaylists(): Promise<PlaylistSummary[]> {
+    if (!account.isSignedIn) return []
+    const key = 'tv:saved-playlists'
+    const cached = this.cache.get<PlaylistSummary[]>(key)
+    if (cached) return cached
+    const json = await this.call('browse', { browseId: 'FEplaylist_aggregation' }, 'tv')
+    const playlists = mapSavedPlaylists(json)
+    this.cache.set(key, playlists, BROWSE_TTL_SECONDS)
+    return playlists
+  }
 
   // ---- Search ------------------------------------------------------------
 
@@ -468,8 +513,29 @@ export class InnertubeClient implements Backend {
     if (cached) return cached
     // Playlist browse ids are the playlist id prefixed with VL.
     const browseId = plid.startsWith('VL') ? plid : 'VL' + plid
-    const json = await this.call('browse', { browseId })
-    const playlist = mapPlaylist(json)
+
+    // The WEB client is preferred: it is the verified path and returns the richer
+    // shape (author, description, view count). But it carries no account token, so
+    // it cannot see a PRIVATE playlist - which is what Watch Later, Liked Videos and
+    // most user-created playlists are. Signed in, fall back to the TV client, the
+    // only one the token is valid for.
+    let playlist: PlaylistDetails | null = null
+    try {
+      playlist = mapPlaylist(await this.call('browse', { browseId }))
+    } catch (err) {
+      if (!account.isSignedIn) throw err
+    }
+
+    if ((!playlist || playlist.videos.length === 0) && account.isSignedIn) {
+      const tv = mapTvPlaylist(
+        await this.call('browse', { browseId }, 'tv'),
+        plid,
+        playlist?.title ?? ''
+      )
+      if (tv.videos.length > 0) playlist = tv
+    }
+
+    if (!playlist) throw new HttpError('server', 'browse', 'The playlist returned nothing')
     this.cache.set(key, playlist, BROWSE_TTL_SECONDS)
     return playlist
   }

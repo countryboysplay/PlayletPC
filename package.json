@@ -13,12 +13,14 @@
     "desktop": "tauri dev",
     "desktop:build": "tauri build",
     "desktop:build:nsis": "tauri build --bundles nsis",
-    "test:live": "npm run test:live:dash && npm run test:live:visionos",
+    "test:live": "npm run test:live:dash && npm run test:live:visionos && npm run test:live:account",
     "test:live:dash": "esbuild tests/live-dash.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/live.mjs && node node_modules/.cache/live.mjs",
     "test:live:visionos": "esbuild tests/live-visionos-pipeline.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/vpipe.mjs && node node_modules/.cache/vpipe.mjs",
-    "test": "npm run test:ladder && npm run test:fixtures",
+    "test": "npm run test:ladder && npm run test:fixtures && npm run test:tv",
     "test:ladder": "esbuild tests/client-ladder.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/ladder.mjs && node node_modules/.cache/ladder.mjs",
-    "test:fixtures": "esbuild tests/mapper-fixtures.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t1.mjs && node node_modules/.cache/t1.mjs && esbuild tests/dash-fixtures.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t2.mjs && node node_modules/.cache/t2.mjs"
+    "test:fixtures": "esbuild tests/mapper-fixtures.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t1.mjs && node node_modules/.cache/t1.mjs && esbuild tests/dash-fixtures.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t2.mjs && node node_modules/.cache/t2.mjs",
+    "test:tv": "esbuild tests/tv-map-fixtures.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/tv.mjs && node node_modules/.cache/tv.mjs",
+    "test:live:account": "esbuild tests/live-account.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/acct.mjs && node node_modules/.cache/acct.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.3",

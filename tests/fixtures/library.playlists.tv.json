@@ -1,0 +1,375 @@
+{
+  "responseContext": {
+    "visitorData": "Cgt4NElNQ1lsdUIzOCiE3YXVBjIKCgJVUxIEGgAgYA%3D%3D",
+    "serviceTrackingParams": [
+      {
+        "service": "GFEEDBACK",
+        "params": [
+          {
+            "key": "browse_id",
+            "value": "FEplaylist_aggregation"
+          },
+          {
+            "key": "browse_id_prefix",
+            "value": ""
+          },
+          {
+            "key": "logged_in",
+            "value": "1"
+          }
+        ]
+      }
+    ],
+    "responseId": "IhMIzJfVhNzhlgMVOMdyCR0k7CDL"
+  },
+  "contents": {
+    "tvBrowseRenderer": {
+      "content": {
+        "tvSurfaceContentRenderer": {
+          "content": {
+            "gridRenderer": {
+              "items": [
+                {
+                  "tileRenderer": {
+                    "style": "TILE_STYLE_YTLR_DEFAULT",
+                    "header": {
+                      "tileHeaderRenderer": {
+                        "thumbnail": {
+                          "thumbnails": [
+                            {
+                              "url": "https://i.ytimg.com/img/no_thumbnail.jpg",
+                              "width": 480,
+                              "height": 360
+                            }
+                          ],
+                          "sampledThumbnailColor": {
+                            "red": 76,
+                            "green": 76,
+                            "blue": 76
+                          },
+                          "darkColorPalette": {
+                            "section2Color": 3355443,
+                            "iconInactiveColor": 9211020,
+                            "iconDisabledColor": 5855577
+                          },
+                          "vibrantColorPalette": {
+                            "iconInactiveColor": 10066329
+                          }
+                        },
+                        "thumbnailOverlays": [
+                          {
+                            "thumbnailOverlayTimeStatusRenderer": {
+                              "text": {
+                                "runs": [
+                                  {
+                                    "text": "No videos"
+                                  }
+                                ]
+                              },
+                              "style": "DEFAULT",
+                              "icon": {
+                                "iconType": "PLAYLISTS"
+                              }
+                            }
+                          },
+                          {
+                            "thumbnailOverlayStackingEffectRenderer": {
+                              "upperStackColor": 4284045657,
+                              "lowerStackColor": 4287401100
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "metadata": {
+                      "tileMetadataRenderer": {
+                        "title": {
+                          "simpleText": "Watch later"
+                        },
+                        "lines": [
+                          {
+                            "lineRenderer": {
+                              "items": [
+                                {
+                                  "lineItemRenderer": {
+                                    "text": {
+                                      "simpleText": "Private"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "lineRenderer": {
+                              "items": [
+                                {
+                                  "lineItemRenderer": {
+                                    "text": {
+                                      "simpleText": "Updated today"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "onSelectCommand": {
+                      "clickTrackingParams": "",
+                      "browseEndpoint": {
+                        "browseId": "VLWL",
+                        "pageAnimation": {
+                          "preloadPageConfig": {
+                            "backgroundScrimConfig": {
+                              "scrimStyle": "SCRIM_STYLE_DEFAULT"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "trackingParams": "",
+                    "contentId": "WL",
+                    "contentType": "TILE_CONTENT_TYPE_PLAYLIST"
+                  }
+                },
+                {
+                  "tileRenderer": {
+                    "style": "TILE_STYLE_YTLR_DEFAULT",
+                    "header": {
+                      "tileHeaderRenderer": {
+                        "thumbnail": {
+                          "thumbnails": [
+                            {
+                              "url": "https://i.ytimg.com/vi/VID00000020/hqdefault.jpg?sqp=-oaymwEXCMACELQBSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLAqxeFIGyABk3h5vgYmJ7rPrz_o0w",
+                              "width": 320,
+                              "height": 180
+                            }
+                          ],
+                          "sampledThumbnailColor": {
+                            "red": 89,
+                            "green": 67,
+                            "blue": 60
+                          },
+                          "darkColorPalette": {
+                            "section2Color": 3352098,
+                            "iconInactiveColor": 9665910,
+                            "iconDisabledColor": 6311753
+                          },
+                          "vibrantColorPalette": {
+                            "iconInactiveColor": 10057323
+                          }
+                        },
+                        "thumbnailOverlays": [
+                          {
+                            "thumbnailOverlayTimeStatusRenderer": {
+                              "text": {
+                                "runs": [
+                                  {
+                                    "text": "4",
+                                    "bold": true
+                                  },
+                                  {
+                                    "text": " videos"
+                                  }
+                                ]
+                              },
+                              "style": "DEFAULT",
+                              "icon": {
+                                "iconType": "PLAYLISTS"
+                              }
+                            }
+                          },
+                          {
+                            "thumbnailOverlayStackingEffectRenderer": {
+                              "upperStackColor": 4284501833,
+                              "lowerStackColor": 4287855990
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "metadata": {
+                      "tileMetadataRenderer": {
+                        "title": {
+                          "simpleText": "Sample Playlist 1"
+                        },
+                        "lines": [
+                          {
+                            "lineRenderer": {
+                              "items": [
+                                {
+                                  "lineItemRenderer": {
+                                    "text": {
+                                      "simpleText": "Private"
+                                    }
+                                  }
+                                }
+                              ],
+                              "wrap": true
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "onSelectCommand": {
+                      "clickTrackingParams": "",
+                      "browseEndpoint": {
+                        "browseId": "VLPL0000000000000000",
+                        "pageAnimation": {
+                          "preloadPageConfig": {
+                            "backgroundScrimConfig": {
+                              "scrimStyle": "SCRIM_STYLE_DEFAULT"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "trackingParams": "",
+                    "contentId": "PL0000000000000000",
+                    "contentType": "TILE_CONTENT_TYPE_PLAYLIST"
+                  }
+                },
+                {
+                  "tileRenderer": {
+                    "style": "TILE_STYLE_YTLR_DEFAULT",
+                    "header": {
+                      "tileHeaderRenderer": {
+                        "thumbnail": {
+                          "thumbnails": [
+                            {
+                              "url": "https://i.ytimg.com/vi/VID00000021/hqdefault.jpg?sqp=-oaymwExCMACELQBSFryq4qpAyMIARUAAIhCGAHwAQH4Af4JgALQBYoCDAgAEAEYZSBlKGUwDw==&rs=AOn4CLAZ_Eovz9GpCOXNZJ443DX_nhFUGQ",
+                              "width": 320,
+                              "height": 180
+                            }
+                          ],
+                          "sampledThumbnailColor": {
+                            "red": 89,
+                            "green": 89,
+                            "blue": 89
+                          },
+                          "darkColorPalette": {
+                            "section2Color": 2631720,
+                            "iconInactiveColor": 9211020,
+                            "iconDisabledColor": 5855577
+                          },
+                          "vibrantColorPalette": {
+                            "iconInactiveColor": 12566463
+                          }
+                        },
+                        "thumbnailOverlays": [
+                          {
+                            "thumbnailOverlayTimeStatusRenderer": {
+                              "text": {
+                                "runs": [
+                                  {
+                                    "text": "3",
+                                    "bold": true
+                                  },
+                                  {
+                                    "text": " videos"
+                                  }
+                                ]
+                              },
+                              "style": "DEFAULT",
+                              "icon": {
+                                "iconType": "PLAYLISTS"
+                              }
+                            }
+                          },
+                          {
+                            "thumbnailOverlayStackingEffectRenderer": {
+                              "upperStackColor": 4284045657,
+                              "lowerStackColor": 4287401100
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "metadata": {
+                      "tileMetadataRenderer": {
+                        "title": {
+                          "simpleText": "Liked videos"
+                        },
+                        "lines": [
+                          {
+                            "lineRenderer": {
+                              "items": [
+                                {
+                                  "lineItemRenderer": {
+                                    "text": {
+                                      "simpleText": "Private"
+                                    }
+                                  }
+                                }
+                              ],
+                              "wrap": true
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "onSelectCommand": {
+                      "clickTrackingParams": "",
+                      "browseEndpoint": {
+                        "browseId": "VLLL",
+                        "pageAnimation": {
+                          "preloadPageConfig": {
+                            "backgroundScrimConfig": {
+                              "scrimStyle": "SCRIM_STYLE_DEFAULT"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "trackingParams": "",
+                    "contentId": "LL",
+                    "contentType": "TILE_CONTENT_TYPE_PLAYLIST"
+                  }
+                }
+              ],
+              "continuations": [
+                {
+                  "nextContinuationData": {
+                    "continuation": "4qmFsgImEhZGRXBsYXlsaXN0X2FnZ3JlZ2F0aW9uGgxDQUY2QUElM0QlM0Q%3D",
+                    "clickTrackingParams": ""
+                  }
+                }
+              ],
+              "isCollapsible": true,
+              "showMoreText": {
+                "runs": [
+                  {
+                    "text": "Show more"
+                  }
+                ]
+              },
+              "showFewerText": {
+                "runs": [
+                  {
+                    "text": "Show fewer"
+                  }
+                ]
+              },
+              "trackingParams": ""
+            }
+          },
+          "header": {
+            "tvSurfaceHeaderRenderer": {
+              "title": {
+                "runs": [
+                  {
+                    "text": "Playlists"
+                  }
+                ]
+              }
+            }
+          },
+          "trackingParams": ""
+        }
+      }
+    }
+  },
+  "trackingParams": ""
+}

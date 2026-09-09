@@ -23,6 +23,10 @@
       await Promise.all([settings.load(), library.load(), account.load()])
       booted = true
       await session.connect()
+      // Pull the account's subscriptions and playlists in after the backend is up.
+      // Not awaited into the boot path: it must never delay first paint, and it is
+      // fine for it to land a moment after the first screen renders.
+      void session.syncAccount()
     })()
   })
 

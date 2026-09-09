@@ -34,29 +34,52 @@ npm run check                # svelte-check, 165 files
 cd src-tauri && cargo test --bin playlet-desktop   # 10 Rust tests
 ```
 
-## 2a. Open: playback tops out at 1080p
+## 2a. SOLVED: playback topped out at 1080p
 
-Reported 2026-09-09 on a second machine, after the playback fixes landed. Not yet
-investigated - recording it so the next session does not start from scratch.
+Reported 2026-09-09, fixed the same day. **The cause was a bare `vp9` codec string,
+and it was invisible to every check that looked plausible.**
 
-What is already known:
-- `DEFAULTS.maxHeight` is `null` and `preferredCodec` is `'auto'`, so the app is not
-  capping it. Verified in the shipped v0.1.0 build.
-- VISIONOS *does* offer higher formats: a sample player response listed itag 308
-  (1440p60 VP9), 315 (2160p60 VP9), 400/401 (AV1 equivalents).
-- So the ceiling is being applied somewhere between the player response and shaka's
-  variant choice.
+VISIONOS - the client this app plays with - returns `codecs="vp9"` in its
+`adaptiveFormats`. Other clients (IOS, for one) return `codecs="vp09.00.51.08"`. Both
+forms are accepted by `MediaSource.isTypeSupported`, so nothing looked wrong. But shaka
+does not filter on `isTypeSupported`; it calls
+`navigator.mediaCapabilities.decodingInfo()`, and Chromium **rejects the bare form as
+under-specified**, answering `supported: false` at *every* resolution.
 
-Candidates worth checking, in rough order of likelihood - none confirmed:
-1. `settings.preferredQuality` may be set to a fixed value in the user's settings,
-   which `VideoPlayer.svelte` passes straight into the player as `quality`.
-2. `sources.ts::maxAdaptiveHeight(video)` sets `maxHeight` on the DASH candidate.
-3. `innertube-dash.ts` may be dropping the higher representations when building the
-   MPD - check `result.skipped`.
-4. shaka ABR may simply be choosing 1080p as correct for the window size.
+Measured in Chromium (the WebView2 engine), 2026-09-09:
 
-Check them in that order rather than guessing; (1) and (3) are both observable
-without running the app.
+| codec string | `isTypeSupported` | `decodingInfo` @2160p60 |
+|---|---|---|
+| `video/webm; codecs="vp9"` | **true** | **supported: false** |
+| `video/webm; codecs="vp09.00.51.08"` | true | supported, smooth, powerEfficient |
+
+shaka drops every variant whose `decodingInfo` is unsupported
+(`StreamUtils.checkVariantSupported_`), so the whole VP9 ladder vanished, leaving AV1
+and H.264 - and `preferredVideoCodecs` then selected H.264, whose YouTube ladder stops
+at **1080p**. No error, no log line, just half the ladder missing.
+
+**Two fixes, both required:**
+
+1. `innertube-dash.ts::fullyQualifyCodecs` expands a bare `vp9`/`vp8` into its full
+   RFC 6381 form, computing the VP9 level from width x height x frame rate. The level
+   table reproduces YouTube's own assignments exactly, rung for rung (144p->11,
+   240p->20, 360p->21, 480p->30, 720p60->40, 1080p60->41, 1440p60->50, 2160p60->51).
+2. `player.ts::codecPreferenceList` matched on `'vp9'`, which does not
+   `startsWith`-match `vp09...`. Once (1) emits qualified strings, the old list would
+   have fallen through to H.264 and re-created the same ceiling. It now lists `vp09`
+   before `vp9`. Shaka's matcher is a prefix test, and the first preference with any
+   match wins outright - so a near-miss is not a near-miss, it is a silent codec
+   downgrade.
+
+Covered by `tests/dash-fixtures.test.ts` (the level table and an end-to-end MPD
+assertion that no bare `vp9` survives) and `tests/live-account.test.ts`, which builds
+a manifest from a live 4K response and asserts the full 2160p ladder is reachable.
+
+**The lesson worth keeping:** three of the four candidates originally written down here
+(a `preferredQuality` setting, `maxAdaptiveHeight`, `result.skipped`) were all wrong,
+and all were checkable. The real cause was one layer lower than any of them, in a
+browser API contract, and the only thing that found it was asking the engine directly
+what it supported instead of reasoning about what it should support.
 
 ## 2. What works today
 
@@ -186,19 +209,21 @@ Also true and load-bearing:
 - **Legacy is being retired.** The WEB client now returns *no* `url` and *no*
   `signatureCipher` — only `serverAbrStreamingUrl`.
 
-## 6. Sign-in: currently pointless
+## 6. Sign-in: what it is actually for
 
 The TV device-code OAuth flow is fully implemented and works (`src-tauri/src/oauth.rs`,
 `src/lib/stores/account.svelte.ts`, panel in Settings). It mints real tokens.
 
-**It buys nothing for playback** and costs privacy — watching becomes attributable to the
-Google account. Confirmed against the Roku app, which plays full videos signed in *or*
-signed out: an account is not the missing ingredient, and no amount of sign-in work will
-lift the 60-second wall.
+**It buys nothing for playback** and costs privacy - watching becomes attributable to the
+Google account. What it *does* buy, as of 2026-09-09, is the thing it was always for on
+Roku: your real subscriptions and saved playlists (below).
 
-Sign-in's real value is what it is on Roku — a convenience that gives quick access to your
-subscriptions and playlists. Worth finishing for that reason once playback works, not
-before. Note the authenticated feeds are still stubbed (below).
+On playback specifically, confirmed against the Roku app, which plays full videos signed
+in *or* signed out: an account is not the missing ingredient, and no amount of sign-in
+work will lift the 60-second wall.
+
+Sign-in's real value is what it is on Roku — quick access to your subscriptions and
+playlists. That is now built (below).
 
 Hard-won detail worth keeping: **the token must go ONLY to the TV client.** An
 `Authorization` header on a WEB `/search` or IOS `/player` returns HTTP 401 "Request had
@@ -206,10 +231,45 @@ invalid authentication credentials". Sending it everywhere broke search and play
 once already. Encoded in `innertube.ts` as `client === 'tv' ? token : undefined`, and
 upstream states the same rule as `useAccessToken = isTv and ...`.
 
-Authenticated feeds (`FEsubscriptions`, `FElibrary`, `FEhistory`) are **deliberately
-stubbed to return `[]`**. They need the TV client (the only one the token works for), and
-TV browse uses living-room renderers this app's mapper has never been verified against. A
-guessed mapper would return an empty list indistinguishable from "you have none".
+**Authenticated feeds now work** (2026-09-09). They were stubbed to return `[]` because
+TV browse uses living-room renderers the mapper had never been verified against - and
+that was the right call at the time, but the fix was simply to capture a real signed-in
+response and read it, which had never been done.
+
+`FEsubscriptions` and `FEplaylist_aggregation` both answer HTTP 200 with real data on
+the TV client with an account token. The shapes:
+
+* **`tileRenderer`** is the living-room card. `contentType` is
+  `TILE_CONTENT_TYPE_VIDEO` / `_PLAYLIST` / `_CHANNEL`, `contentId` is the id, the
+  title sits in `metadata.tileMetadataRenderer.title`, and the metadata `lines[]` carry
+  the author, view count and relative date as separate `lineItemRenderer` texts.
+* **The subscribed channel list is NOT in the feed body.** It is the tab strip: one
+  `tabRenderer` per subscribed channel, with the channel id encoded in the tab's
+  base64 protobuf `params` (the strip also holds `All` / `A-Z` / `Shorts` navigation
+  tabs and repeats every channel in an alphabetised group).
+* **`FEplaylist_aggregation`** is the clean playlists surface - user playlists plus
+  Watch Later (`WL`) and Liked Videos (`LL`), with counts in the thumbnail overlay.
+  `FElibrary` has them too, mixed in with history and navigation tiles.
+
+Mapped in `src/lib/api/innertube-tv-map.ts`, fixtures in
+`tests/fixtures/subscriptions.tv.json` and `library.playlists.tv.json` (real structure,
+sanitised ids and titles), 43 assertions in `tests/tv-map-fixtures.test.ts`.
+
+Subscriptions are **merged** into the local library rather than replacing it
+(`library.mergeSubscriptions`), so the existing Subscriptions page, Home feed and
+channel "Subscribed" state all work unchanged, and a subscription added on this PC
+while signed out is never silently deleted. Signing out keeps the local list.
+
+**Opening a playlist needed a second fix.** Watch Later, Liked Videos and most
+user-created playlists are *private*, and the WEB client carries no account token, so
+it cannot see them at all - the list would show three playlists that all failed to
+open. `InnertubeClient.playlist()` now tries WEB first (the verified path, and the
+richer shape) and falls back to a TV browse when signed in, mapped by `mapTvPlaylist`.
+That reuses the same `tileRenderer` parser the other two feeds are built on rather
+than adding a third. The TV playlist *header* shape has not been captured against a
+real account, so the title falls back to the one already known from the playlist list
+rather than being guessed; `tests/live-account.test.ts` covers the whole path the
+moment someone runs it signed in.
 
 ## 7. SABR/UMP: built, working, and not the answer
 
@@ -398,6 +458,8 @@ src/lib/api/
   backend.ts            the contract both backends satisfy
   innertube.ts          direct YouTube client, client ladder, manifest attach
   innertube-map.ts      InnerTube JSON -> Invidious shapes (242 assertions)
+  innertube-tv-map.ts   TVHTML5 living-room renderers -> the same shapes; the
+                        signed-in subscriptions/playlists feeds (43 assertions)
   innertube-dash.ts     adaptiveFormats -> MPD (92 assertions)
   innertube-params.ts   protobuf writer for search filters (reuse for SABR)
   media-proxy.ts        URL rewriting to the playletmedia scheme
