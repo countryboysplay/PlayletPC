@@ -256,12 +256,12 @@ pub fn handle<R: tauri::Runtime>(
         }
     }
 
-    let range = closed_range(
-        request
-            .headers()
-            .get("range")
-            .and_then(|value| value.to_str().ok()),
-    );
+    let incoming_range = request
+        .headers()
+        .get("range")
+        .and_then(|value| value.to_str().ok())
+        .map(|s| s.to_string());
+    let range = closed_range(incoming_range.as_deref());
     forwarded.push(("range".to_string(), range));
 
     let is_head = request.method() == tauri::http::Method::HEAD;

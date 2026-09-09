@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import {
     PlayletPlayer,
     SponsorBlockController,
@@ -295,7 +296,22 @@
   }
 
   $effect(() => {
-    void setup()
+    // untrack here is load-bearing, not decoration.
+    //
+    // setup() synchronously reads session.isDirect, settings.proxyVideos,
+    // settings.preferredQuality and settings.sponsorBlockEnabled. Without untrack
+    // each of those becomes a dependency of this effect, so writing any of them
+    // re-runs it - and this effect's cleanup calls player.destroy(). The symptom
+    // was a video dying silently ~18-20s in with a healthy decoder, a full buffer
+    // and no error logged anywhere: the player was being torn down and rebuilt
+    // underneath itself. The 5s progress timer below records resume positions,
+    // which is a write that kept re-triggering it.
+    //
+    // Same trap as Home.svelte and Search.svelte. This effect must run once on
+    // mount and clean up once on unmount.
+    untrack(() => {
+      void setup()
+    })
 
     // Keep the display awake only while this component is mounted.
     void shell.preventSleep().then(release => {

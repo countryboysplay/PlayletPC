@@ -93,6 +93,12 @@ const DEFAULTS: Omit<ResolvedLoadOptions, 'instance'> = {
   startTime: 0,
   autoplay: true,
   quality: 'auto',
+  // No ceiling: let ABR use whatever the video offers, including 1440p/2160p.
+  //
+  // A 1080p cap was tried while chasing a stall that turned out to be a Svelte
+  // reactivity bug destroying the player (see VideoPlayer.svelte). Decode was
+  // never the problem - measured 2317 frames with 0 dropped at 1080p - so
+  // capping quality would have been hiding a bug we had already fixed.
   maxHeight: null,
   preferredCodec: 'auto',
   captionLanguage: null,
@@ -680,7 +686,11 @@ export class PlayletPlayer {
       // for shaka to guess encodings.
       textDisplayFactory: undefined,
       preferredTextLanguage: opts.captionLanguage ?? '',
-      _candidateProxied: candidate.proxied,
+      // NOTE: do not add non-shaka keys here. `sp.configure()` walks this object
+      // against its own schema and logs "Invalid config, unrecognized key" for
+      // anything it does not know, which buried the console in noise on every
+      // single video load. (Valid keys are still applied - shaka skips only the
+      // unknown one - but the error made every console read harder.)
     };
   }
 

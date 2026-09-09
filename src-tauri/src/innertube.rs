@@ -399,14 +399,6 @@ pub async fn yt_innertube(
         request = request.header(reqwest::header::AUTHORIZATION, format!("Bearer {token}"));
     }
 
-    eprintln!(
-        "[innertube] endpoint={} client={} visitor_id={} authed={}",
-        endpoint,
-        client_key,
-        if profile.send_visitor_id && identity.visitor_data.is_some() { "yes" } else { "no" },
-        authenticated
-    );
-
     let started = Instant::now();
     let mut response = request
         .send()
@@ -428,13 +420,6 @@ pub async fn yt_innertube(
         }
         buf.extend_from_slice(&chunk);
     }
-
-    eprintln!(
-        "[innertube] -> {} {} bytes ({} ms)",
-        status.as_u16(),
-        buf.len(),
-        started.elapsed().as_millis()
-    );
 
     Ok(InnertubeResponse {
         status: status.as_u16(),
