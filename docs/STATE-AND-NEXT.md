@@ -3,10 +3,14 @@
 Last updated: 2026-09-08 (second revision). Written as a handoff — read this before
 touching playback.
 
-**SABR/UMP is now built and measured. It does not lift the 60-second wall.** The wall is
-not a property of the legacy `videoplayback` transport, as this document previously
-assumed — it is an *attestation boundary* that applies identically to SABR, and the server
-says so out loud. Section 6 has the evidence and the revised plan.
+**SOLVED. Playback works, end to end.** The 60-second wall was never a policy limit — it
+was an artifact of *which client* was being asked. The **VISIONOS** client returns direct,
+unciphered URLs with no PoToken requirement and no serve limit, and streams a whole video.
+It is now the first rung of the player ladder. Section 3 has the evidence.
+
+Everything below about SABR, PoTokens and attestation is kept because it is true of the
+IOS/WEB/TV clients and because SABR is the fallback if VISIONOS is ever closed — but none
+of it is on the critical path any more.
 
 ---
 
@@ -25,9 +29,9 @@ npm install
 npm run desktop              # dev
 npm run desktop:build:nsis   # installer -> src-tauri/target/release/bundle/nsis/
 npm test                     # 334 offline assertions against captured fixtures
-npm run test:live            # 18 assertions against live YouTube
+npm run test:live            # 26 assertions against live YouTube
 npm run check                # svelte-check, 165 files
-cd src-tauri && cargo test --bin playlet-desktop   # 9 Rust tests
+cd src-tauri && cargo test --bin playlet-desktop   # 10 Rust tests
 ```
 
 ## 2. What works today
@@ -40,11 +44,44 @@ cd src-tauri && cargo test --bin playlet-desktop   # 9 Rust tests
 - **The whole InnerTube pipeline** — Rust transport with scraped client identity, the
   response mapper (242 fixture assertions), the DASH manifest generator (92 assertions),
   and the media proxy.
-- **Playback starts and renders**, at up to 2160p, with a locally generated manifest.
+- **Playback works**, at up to 2160p, with a locally generated manifest, via the
+  VISIONOS client (§3). Whole videos, not the first minute.
 
-## 3. The one thing that is broken
+## 3. Playback: solved by the VISIONOS client
 
-**YouTube serves only the first ~60 seconds of media, on every transport tested.**
+Verified 2026-09-09. `VISIONOS` (Apple Vision Pro, `X-YouTube-Client-Name: 101`,
+`clientVersion 1.02`) returns **32 adaptive formats, every one with a direct `url`, no
+`signatureCipher`, no `n` parameter and no `pot`** — and no serve limit:
+
+| position in file | result |
+|---|---|
+| 1% | HTTP 206, media |
+| 50% | HTTP 206, media |
+| 99.9% | HTTP 206, media |
+
+The one extra requirement, established by elimination: **`X-Goog-Visitor-Id` must carry the
+scraped visitor id.** Without it the player answers `LOGIN_REQUIRED — Sign in to confirm
+you're not a bot`. Measured as *not* required: `signatureTimestamp` (nothing is ciphered)
+and the consent cookies (sent anyway; they cost nothing and keep the identity scrape off
+consent interstitials).
+
+Wired in at `src-tauri/src/innertube.rs` (`profile_for`) and
+`src/lib/api/innertube.ts` (`PLAYER_CLIENT_LADDER`). Guarded by live assertions in
+`tests/live-dash.test.ts` that read media at 1/50/99% of the file — the bar is still
+*play past 60 seconds*, never *a request succeeded*.
+
+**How it was found:** installing yt-dlp and watching it download the full video on the same
+machine and IP that was failing, then reading `--print-traffic`. Credit to yt-dlp; their
+[PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide) pointed the way.
+Hours of protocol-level probing had not found it.
+
+**Caveat:** this is policy, not protocol. VISIONOS will presumably be restricted like every
+client before it. The ladder falls back to IOS, and the SABR client in `tools/sabr/` is the
+deeper fallback.
+
+## 4. The old wall, for reference (IOS/WEB/TV clients)
+
+**These clients serve only the first ~60 seconds of media.**
 Over legacy `videoplayback` this appears as HTTP 403 past that offset, permanently.
 Over SABR it appears as HTTP 200 with an empty body — no error, no media.
 
@@ -80,7 +117,7 @@ In the app it presents as playback dying after ~5 seconds of wall-clock, because
 buffers far ahead: at high bitrate it requests past the 60-second boundary within
 seconds and treats the resulting 403 as fatal.
 
-## 4. Hypotheses already disproved — do not repeat these
+## 5. Hypotheses already disproved — do not repeat these
 
 Each of these was tested against the live API and **failed**. They cost days; they are
 recorded so nobody spends that again.
@@ -95,9 +132,14 @@ recorded so nobody spends that again.
 | A PoToken lifts it | No — genuine 12-hour tokens minted (server rejects tampered ones). Playback identical with a valid token, a bogus token, and none. `pot` is not in the URL's `sparams`. |
 | Use TVHTML5 (what Roku uses) | No — refuses with **no** `visitorData` (`LOGIN_REQUIRED`) and with **any** `visitorData` ("The page needs to be reloaded"). Tested across 4 client versions incl. downgraded `5.20260114`, client-name headers `7` and `2`, Tizen + PlayStation + Roku UAs, the real STS **20702** from `tv-player-ias.js`, all 10 `/tv` session cookies, and 3 visitor-id sources (scraped, InnerTube `/guide`-issued, WEB-issued). |
 | **Signing in unlocks TVHTML5** | **No.** With a real refreshed account token as `Authorization: Bearer`, TV still answers "The page needs to be reloaded", 0 formats. |
-| **SABR/UMP lifts the cap** | **No.** Implemented and working (§6) — and capped at the same exact 60.000 s. The cap is not transport-specific. |
-| A PoToken lifts it *on SABR* | No — identical with and without, in both the SABR body and `serviceIntegrityDimensions`. But this one is a *class mismatch*, not a dead end: our token is WEB-class and the client was IOS. See §6. |
+| **SABR/UMP lifts the cap** | **No.** Implemented and working (§7) — and capped at the same exact 60.000 s. The cap is not transport-specific. |
+| A PoToken lifts it *on SABR* | No — identical with and without, in both the SABR body and `serviceIntegrityDimensions`. But this one is a *class mismatch*, not a dead end: our token is WEB-class and the client was IOS. See §7. |
 | Waiting clears the SABR stall | No — 73 s of wall clock across six retries, zero further media. Not a rate limiter. |
+
+**Every row above is about the IOS/WEB/TV clients and remains true of them. None of it
+applies to VISIONOS (§3), which has no such limit.** The table's real lesson is that a
+long list of correct negative results can still add up to a wrong conclusion if the search
+space was wrong from the start.
 
 **What actually gates TVHTML5:** Playlet sends `context.client.tvAppInfo.livingRoomPoTokenId`
 — a living-room *device attestation* minted by its own backend
@@ -120,7 +162,7 @@ Also true and load-bearing:
 - **Legacy is being retired.** The WEB client now returns *no* `url` and *no*
   `signatureCipher` — only `serverAbrStreamingUrl`.
 
-## 5. Sign-in: currently pointless
+## 6. Sign-in: currently pointless
 
 The TV device-code OAuth flow is fully implemented and works (`src-tauri/src/oauth.rs`,
 `src/lib/stores/account.svelte.ts`, panel in Settings). It mints real tokens.
@@ -145,7 +187,7 @@ stubbed to return `[]`**. They need the TV client (the only one the token works 
 TV browse uses living-room renderers this app's mapper has never been verified against. A
 guessed mapper would return an empty list indistinguishable from "you have none".
 
-## 6. SABR/UMP: built, working, and not the answer
+## 7. SABR/UMP: built, working, and not the answer
 
 Built and measured 2026-09-08. Working scratch implementation in `tools/sabr/`:
 `capture.mjs` (single request + part dump), `stream.mjs` (full streaming loop),
@@ -224,33 +266,31 @@ Every client that might plausibly be less restricted, probed at 30 s (control) a
 **IOS is the only client that serves media at all, and it is capped at 60 s.** Adding a
 PoToken changed nothing anywhere in this table.
 
-### Where that leaves the next step
+### Superseded — but keep it
 
-The honest summary: **transport is solved, attestation is not, and no reachable client
-identity avoids the gate.** This is the ceiling for a public, unattested desktop app.
+Everything in this section is still *true*, and it is all still wrong about what mattered.
+The conclusion drawn here — "no reachable client identity avoids the gate" — was false. It
+was drawn from testing IOS, WEB, MWEB, TV, the embedded clients and ANDROID_VR, and it did
+not occur to me to ask what yt-dlp was doing. VISIONOS was never tried (§3).
 
-1. **Do not ship 60-second playback.** Stating it plainly so nobody mistakes the current
-   state for progress. Browsing is genuinely good; playback is not usable.
-2. **The gate is a client-matched device attestation.** Playlet on Roku clears it because
-   it holds one — `livingRoomPoTokenId`, minted by its own backend
-   (`PLAYLET_SUPPORT_SERVER`, not in the public repo, §4). That is the difference, and it
-   is not something this app can mint. Worth confirming with upstream rather than
-   re-deriving it: an honest question to iBicha about what a third-party client is
-   expected to do here would likely save more time than any further probing.
-3. **Exhausted, do not repeat:** every transport, every client identity, both PoToken
-   slots, sign-in, and waiting. §4 has the full list.
+The lesson is worth more than the finding: **hours of protocol-level probing lost to one
+unchecked assumption about the search space.** Checking what an existing working tool does
+should have come first, not last.
 
-Two things that would still be worth doing regardless of how attestation resolves:
+What is still worth keeping from this work:
 
-- Port the UMP parser and ABR request builder into `src/` anyway. They are correct, tested
-  against real captures, and will be needed the moment the gate opens — SABR is what
-  YouTube serves now, and the legacy path is being retired.
-- Keep `tools/sabr/` runnable. It is the cheapest way to re-test whether the boundary has
-  moved, which it may, since this is policy rather than protocol.
+- **SABR is implemented and correct**, in `tools/sabr/`. If VISIONOS is closed, this is the
+  fallback that does not need to be rediscovered. The `xtags`, UMP-varint and `time_range`
+  gotchas above are all real and cost a day between them.
+- **`tools/sabr/` stays runnable** — the cheapest way to re-test whether a boundary has
+  moved, and this is policy, so boundaries move.
+- **In-process attestation works** if it is ever needed: bgutils-js v4 mints a real
+  12-hour PoToken in ~350 ms under jsdom, and youtubei.js will decipher signature/`n`
+  given a `node:vm` evaluator. Neither is currently on the critical path.
 
-Note for whoever picks this up: Playlet on Roku plays full videos whether or not you are
-signed in, so an account is definitively not the missing ingredient. Sign-in is a
-convenience for subscriptions and playlists, nothing more (§5).
+One correction to §5 while it is in view: `livingRoomPoTokenId` is **not** minted by
+Playlet's backend. It is scraped by regex from `https://www.youtube.com/tv` alongside
+`visitorData` and cached 14 days. See `PLAYLET-ROKU-MAP.md` §5.1.
 
 ### What SABR is
 
@@ -327,7 +367,7 @@ ahead and treats the 403 as fatal. Lowering shaka's `bufferingGoal` would let th
 minute actually play. Roughly ten minutes of work, a 12× improvement on a broken thing,
 and it makes SABR development less painful. Not a fix.
 
-## 7. Map of the code
+## 8. Map of the code
 
 ```
 src/lib/api/
@@ -354,7 +394,7 @@ Three seams keep the app shell-agnostic: `api/http.ts` (transport), `stores/stor
 (persistence), `shell.ts` (window/power). Nothing under `src/` except `lib/desktop.ts`
 imports Tauri.
 
-## 8. Traps that already cost time
+## 9. Traps that already cost time
 
 - **`api_fetch` decodes bodies as UTF-8.** Never route binary through it.
 - **shaka registers no `blob:` scheme.** A blob manifest URL fails before a byte moves;

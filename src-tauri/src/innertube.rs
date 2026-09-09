@@ -13,12 +13,23 @@
 //!     refreshing on a timer, not per-request work in the UI.
 //!
 //! Client choice is not arbitrary - it was measured against the live API:
-//!   * IOS returns direct, unciphered stream URLs with no `n` parameter and no
-//!     PoToken requirement. That is the only reason this app needs no JS engine.
-//!   * TVHTML5 and ANDROID_VR now answer LOGIN_REQUIRED ("Sign in to confirm you're
-//!     not a bot"); WEB answers UNPLAYABLE without a PoToken. So IOS handles playback.
-//!   * IOS search/browse returns opaque `elementRenderer` blobs, so WEB handles
-//!     search, browse and recommendations, where classic renderers are still present.
+//!   * VISIONOS returns direct, unciphered stream URLs with no `n` parameter, no
+//!     PoToken requirement, and - critically - no 60-second serve limit. It handles
+//!     playback. This is also what yt-dlp uses by default.
+//!   * IOS also returns direct URLs but YouTube stops serving it after exactly
+//!     60.000 seconds of media, so it is a fallback only. TVHTML5 and ANDROID_VR
+//!     answer LOGIN_REQUIRED; WEB answers UNPLAYABLE without a PoToken.
+//!   * IOS/VISIONOS search/browse returns opaque `elementRenderer` blobs, so WEB
+//!     handles search, browse and recommendations, where classic renderers remain.
+//!
+//! VISIONOS has exactly one extra requirement, measured by elimination:
+//!   * `X-Goog-Visitor-Id` must carry the scraped visitor id. Without it the player
+//!     answers LOGIN_REQUIRED ("Sign in to confirm you're not a bot"), with or
+//!     without cookies.
+//! Not required, despite appearances while working this out: `signatureTimestamp`
+//! (no format is ciphered, so there is nothing to time-stamp) and the consent
+//! cookies. The cookies are still sent because they cost nothing and keep the
+//! identity scrape clear of consent interstitials.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -34,10 +45,18 @@ const INNERTUBE_BASE: &str = "https://www.youtube.com/youtubei/v1/";
 const WEB_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
                       (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const IOS_UA: &str = "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)";
+const VISIONOS_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 \
+                           (KHTML, like Gecko) Version/26.0 Safari/605.1.15";
 
 /// Used only until the real version is scraped from the YouTube home page.
 const WEB_VERSION_FALLBACK: &str = "2.20260907.06.00";
 const IOS_VERSION: &str = "20.10.4";
+const VISIONOS_VERSION: &str = "1.02";
+
+/// Consent and preference cookies, as yt-dlp seeds them. Measured as NOT required
+/// for the player call, but they keep the identity scrape from landing on a consent
+/// interstitial in regions that serve one, and they cost nothing.
+const CONSENT_COOKIES: &str = "SOCS=CAI; PREF=hl=en&tz=UTC";
 
 /// The scraped identity goes stale; YouTube ships a new web build most days.
 const IDENTITY_TTL: Duration = Duration::from_secs(6 * 60 * 60);
@@ -91,6 +110,7 @@ async fn fetch_identity(http: &reqwest::Client) -> Identity {
         .get(YOUTUBE_ORIGIN)
         .header(reqwest::header::USER_AGENT, WEB_UA)
         .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .header(reqwest::header::COOKIE, CONSENT_COOKIES)
         .timeout(Duration::from_secs(15))
         .send()
         .await;
@@ -157,12 +177,36 @@ struct ClientProfile {
     ua: &'static str,
     header_name: &'static str,
     header_version: String,
-    /// Whether the scraped visitor id applies (web-family clients only).
-    web_family: bool,
+    /// Whether the scraped visitor id should be sent as `X-Goog-Visitor-Id`.
+    /// True for the web family and for VISIONOS, which requires it.
+    send_visitor_id: bool,
 }
 
 fn profile_for(name: &str, identity: &Identity) -> ClientProfile {
     match name {
+        // Apple Vision Pro. Direct URLs, no cipher, no `n`, no PoToken, and no
+        // 60-second serve limit - the only client measured to stream a whole video.
+        // Requires X-Goog-Visitor-Id (send_visitor_id below) or it answers
+        // LOGIN_REQUIRED.
+        "visionos" => ClientProfile {
+            context: json!({
+                "client": {
+                    "clientName": "VISIONOS",
+                    "clientVersion": VISIONOS_VERSION,
+                    "deviceMake": "Apple",
+                    "deviceModel": "RealityDevice17,1",
+                    "userAgent": VISIONOS_UA,
+                    "osName": "visionOS",
+                    "osVersion": "26.5.23O471",
+                    "hl": "en",
+                    "gl": "US",
+                }
+            }),
+            ua: VISIONOS_UA,
+            header_name: "101",
+            header_version: VISIONOS_VERSION.to_string(),
+            send_visitor_id: true,
+        },
         "ios" => ClientProfile {
             context: json!({
                 "client": {
@@ -179,7 +223,7 @@ fn profile_for(name: &str, identity: &Identity) -> ClientProfile {
             ua: IOS_UA,
             header_name: "5",
             header_version: IOS_VERSION.to_string(),
-            web_family: false,
+            send_visitor_id: false,
         },
         "android_vr" => ClientProfile {
             context: json!({
@@ -198,7 +242,7 @@ fn profile_for(name: &str, identity: &Identity) -> ClientProfile {
             ua: "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; GB) gzip",
             header_name: "28",
             header_version: "1.61.48".to_string(),
-            web_family: false,
+            send_visitor_id: false,
         },
         // The client the upstream Roku app uses. Kept in the ladder so it is picked up
         // automatically if it opens back up on a given network.
@@ -215,7 +259,7 @@ fn profile_for(name: &str, identity: &Identity) -> ClientProfile {
                  (KHTML, like Gecko) Version/16.0 Safari/605.1.15",
             header_name: "7",
             header_version: "7.20250101.10.00".to_string(),
-            web_family: false,
+            send_visitor_id: false,
         },
         "web_embedded" => ClientProfile {
             context: json!({
@@ -230,14 +274,14 @@ fn profile_for(name: &str, identity: &Identity) -> ClientProfile {
             ua: WEB_UA,
             header_name: "56",
             header_version: "1.20260907.00.00".to_string(),
-            web_family: true,
+            send_visitor_id: true,
         },
         _ => ClientProfile {
             context: web_context(identity),
             ua: WEB_UA,
             header_name: "1",
             header_version: identity.web_version.clone(),
-            web_family: true,
+            send_visitor_id: true,
         },
     }
 }
@@ -299,7 +343,7 @@ pub async fn yt_innertube(
                 map.remove("visitorData");
             }
         }
-        profile.web_family = false;
+        profile.send_visitor_id = false;
     }
 
     let mut body = match req.payload {
@@ -325,11 +369,12 @@ pub async fn yt_innertube(
         .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
         .header("X-YouTube-Client-Name", client_name)
         .header("X-YouTube-Client-Version", client_version)
+        .header(reqwest::header::COOKIE, CONSENT_COOKIES)
         .timeout(Duration::from_secs(30))
         .body(payload);
 
     // The visitor id only applies to web-family clients, and never alongside a token.
-    if profile.web_family {
+    if profile.send_visitor_id {
         if let Some(visitor) = &identity.visitor_data {
             request = request.header("X-Goog-Visitor-Id", visitor);
         }
