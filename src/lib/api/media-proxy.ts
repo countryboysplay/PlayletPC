@@ -30,10 +30,13 @@ export function isProxyableMediaUrl(url: string): boolean {
  * The target is passed as a query parameter rather than spliced into the path, so its
  * own query string (which carries the expiry and signature) survives intact.
  *
- * `videoId` matters: googlevideo retires a stream URL after roughly 20MB and then
+ * `videoId` matters: a stream URL can expire mid-playback, after which googlevideo
  * answers 403 to every further range. Knowing the video lets the proxy mint a
- * replacement URL for the same format and retry, invisibly to the player. Without it,
- * playback stops after a few seconds on a high-bitrate stream.
+ * replacement URL for the same format and retry, invisibly to the player.
+ *
+ * There is no "20MB budget", whatever this comment used to say - that number was
+ * simply where one particular itag happened to stop. What the refresh must never do
+ * is reach for a client whose URLs are capped; see `media.rs::refresh_stream_url`.
  */
 export function proxyMediaUrl(url: string, videoId?: string): string {
     if (!url) return url

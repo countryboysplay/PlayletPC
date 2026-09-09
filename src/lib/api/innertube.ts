@@ -18,6 +18,11 @@ import { HttpError } from './http'
 import { buildSearchParams, CHANNEL_TABS, type SearchFilters } from './innertube-params'
 import { buildDashManifestDetailed, type AdaptiveFormatInput } from './innertube-dash'
 import { proxyMediaUrl } from './media-proxy'
+import {
+  PLAYER_CLIENT_LADDER,
+  SIGNED_IN_LADDER,
+  type PlayerClientName
+} from './player-clients'
 import { account } from '../stores/account.svelte'
 import {
   mapChannel,
@@ -38,38 +43,7 @@ import type {
   VideoSummary
 } from './types'
 
-type InnertubeClientName = 'visionos' | 'ios' | 'web' | 'android_vr' | 'tv' | 'web_embedded'
-
-/**
- * Order matters and is measured, not guessed (see docs/INNERTUBE.md):
- *   visionos     - direct unciphered URLs AND no 60-second serve limit. Verified
- *                  across a whole 635s video: HTTP 206 with media at 1/25/50/75/95
- *                  /99.9% of the file. This is what yt-dlp uses by default.
- *   ios          - also direct and unciphered, but YouTube stops serving it after
- *                  exactly 60.000s of media. A fallback, and a broken one.
- *   android_vr   - currently LOGIN_REQUIRED, but cheap to try and historically open
- *   tv           - what the upstream Roku app uses; works from real Roku hardware
- *   web_embedded - last resort
- */
-const PLAYER_CLIENT_LADDER: InnertubeClientName[] = [
-  'visionos',
-  'ios',
-  'android_vr',
-  'tv',
-  'web_embedded'
-]
-
-/**
- * Signed in, `tv` is tried first only because an account token is the one thing that
- * has ever made it answer. visionos leads the rest - it needs no token at all.
- */
-const SIGNED_IN_LADDER: InnertubeClientName[] = [
-  'tv',
-  'visionos',
-  'ios',
-  'android_vr',
-  'web_embedded'
-]
+type InnertubeClientName = PlayerClientName | 'web'
 
 interface InnertubeResponse {
   status: number

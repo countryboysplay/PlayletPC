@@ -53,17 +53,6 @@ const DEFAULT_CHUNK_BYTES: u64 = 2 * 1024 * 1024;
 // segment past the wall. `StreamUrlCache::capped` learns the boundary instead.
 // See docs/STATE-AND-NEXT.md §3.
 
-/// The start offset of the range we are about to request.
-fn range_start(headers: &[(String, String)]) -> Option<u64> {
-    let value = headers
-        .iter()
-        .find(|(name, _)| name.eq_ignore_ascii_case("range"))
-        .map(|(_, value)| value.as_str())?;
-    let spec = value.strip_prefix("bytes=")?;
-    let start = spec.split('-').next()?;
-    start.trim().parse::<u64>().ok()
-}
-
 /// Normalise a Range header into a CLOSED byte range.
 ///
 /// googlevideo answers **403** - not 200, not 416 - to any request for one of these
@@ -405,7 +394,11 @@ async fn refresh_stream_url(
     let video_id = video_id?;
     let itag = itag_of(stale)?;
 
-    for client in ["ios", "android_vr", "tv"] {
+    // VISIONOS first, and no `ios` at all. A refreshed IOS URL is capped at 60
+    // seconds of media, so swapping one in mid-playback replaces a working stream
+    // with a broken one - the stall looks like a player bug rather than a refresh
+    // bug, which is exactly how it hid.
+    for client in ["visionos", "android_vr", "tv"] {
         let Ok(player) = crate::innertube::player_response(state, video_id, client).await else {
             continue;
         };
@@ -418,7 +411,7 @@ async fn refresh_stream_url(
 
 #[cfg(test)]
 mod tests {
-    use super::{closed_range, range_start, StreamUrlCache};
+    use super::{closed_range, StreamUrlCache};
 
     #[test]
     fn closed_ranges_pass_through() {
@@ -447,17 +440,6 @@ mod tests {
     fn only_the_first_range_of_a_multi_range_request_is_used() {
         assert_eq!(closed_range(Some("bytes=0-99,200-299")), "bytes=0-99");
     }
-    #[test]
-    fn range_start_is_parsed() {
-        let headers = vec![("range".to_string(), "bytes=20971520-23068671".to_string())];
-        assert_eq!(range_start(&headers), Some(20_971_520));
-
-        let early = vec![("range".to_string(), "bytes=0-2097151".to_string())];
-        assert_eq!(range_start(&early), Some(0));
-
-        assert_eq!(range_start(&[]), None);
-    }
-
     #[test]
     fn capped_streams_are_remembered_so_the_url_is_not_refreshed_again() {
         let cache = StreamUrlCache::new();

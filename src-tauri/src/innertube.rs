@@ -182,6 +182,44 @@ struct ClientProfile {
     send_visitor_id: bool,
 }
 
+/// The ONE place an InnerTube request is built.
+///
+/// There used to be two of these - `yt_innertube` and `player_response` - and they
+/// drifted: the second never sent `X-Goog-Visitor-Id`, so VISIONOS answered
+/// LOGIN_REQUIRED there, every mid-playback URL refresh fell through to a capped
+/// client, and playback froze about twenty seconds in. Nothing caught it because
+/// both paths looked correct in isolation. Keep it single.
+fn innertube_request(
+    state: &crate::AppState,
+    endpoint: &str,
+    profile: &ClientProfile,
+    identity: &Identity,
+    payload: String,
+) -> reqwest::RequestBuilder {
+    let mut request = state
+        .http
+        .post(format!("{INNERTUBE_BASE}{endpoint}"))
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::USER_AGENT, profile.ua)
+        .header(reqwest::header::ORIGIN, YOUTUBE_ORIGIN)
+        .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .header(reqwest::header::COOKIE, CONSENT_COOKIES)
+        .header("X-YouTube-Client-Name", profile.header_name)
+        .header("X-YouTube-Client-Version", profile.header_version.clone())
+        .timeout(Duration::from_secs(30))
+        .body(payload);
+
+    // Required by VISIONOS, used by the web family, and never sent alongside an
+    // account token (the token and the visitor id are two different identities).
+    if profile.send_visitor_id {
+        if let Some(visitor) = &identity.visitor_data {
+            request = request.header("X-Goog-Visitor-Id", visitor);
+        }
+    }
+
+    request
+}
+
 fn profile_for(name: &str, identity: &Identity) -> ClientProfile {
     match name {
         // Apple Vision Pro. Direct URLs, no cipher, no `n`, no PoToken, and no
@@ -352,37 +390,22 @@ pub async fn yt_innertube(
     };
     body["context"] = profile.context.clone();
 
-    let ua = profile.ua;
-    let client_name = profile.header_name;
-    let client_version = profile.header_version.clone();
-
     // The re-exported reqwest is built without the `json` feature, so serialize here.
     let payload = serde_json::to_string(&body).map_err(|e| format!("bad payload: {e}"))?;
 
-    let url = format!("{INNERTUBE_BASE}{endpoint}");
-    let mut request = state
-        .http
-        .post(&url)
-        .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .header(reqwest::header::USER_AGENT, ua)
-        .header(reqwest::header::ORIGIN, YOUTUBE_ORIGIN)
-        .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
-        .header("X-YouTube-Client-Name", client_name)
-        .header("X-YouTube-Client-Version", client_version)
-        .header(reqwest::header::COOKIE, CONSENT_COOKIES)
-        .timeout(Duration::from_secs(30))
-        .body(payload);
-
-    // The visitor id only applies to web-family clients, and never alongside a token.
-    if profile.send_visitor_id {
-        if let Some(visitor) = &identity.visitor_data {
-            request = request.header("X-Goog-Visitor-Id", visitor);
-        }
-    }
+    let mut request = innertube_request(&state, &endpoint, &profile, &identity, payload);
 
     if let Some(token) = req.access_token.as_deref().filter(|t| !t.is_empty()) {
         request = request.header(reqwest::header::AUTHORIZATION, format!("Bearer {token}"));
     }
+
+    eprintln!(
+        "[innertube] endpoint={} client={} visitor_id={} authed={}",
+        endpoint,
+        client_key,
+        if profile.send_visitor_id && identity.visitor_data.is_some() { "yes" } else { "no" },
+        authenticated
+    );
 
     let started = Instant::now();
     let mut response = request
@@ -405,6 +428,13 @@ pub async fn yt_innertube(
         }
         buf.extend_from_slice(&chunk);
     }
+
+    eprintln!(
+        "[innertube] -> {} {} bytes ({} ms)",
+        status.as_u16(),
+        buf.len(),
+        started.elapsed().as_millis()
+    );
 
     Ok(InnertubeResponse {
         status: status.as_u16(),
@@ -435,16 +465,7 @@ pub async fn player_response(
     });
     let payload = serde_json::to_string(&body).map_err(|e| format!("bad payload: {e}"))?;
 
-    let response = state
-        .http
-        .post(format!("{INNERTUBE_BASE}player"))
-        .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .header(reqwest::header::USER_AGENT, profile.ua)
-        .header(reqwest::header::ORIGIN, YOUTUBE_ORIGIN)
-        .header("X-YouTube-Client-Name", profile.header_name)
-        .header("X-YouTube-Client-Version", profile.header_version.clone())
-        .timeout(Duration::from_secs(20))
-        .body(payload)
+    let response = innertube_request(state, "player", &profile, &identity, payload)
         .send()
         .await
         .map_err(|e| format!("player request failed: {e}"))?;
@@ -489,4 +510,69 @@ pub async fn yt_refresh_identity(state: State<'_, crate::AppState>) -> Result<St
     let version = fresh.web_version.clone();
     state.innertube.store(fresh);
     Ok(version)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn identity_with_visitor() -> Identity {
+        Identity {
+            web_version: "2.20260907.06.00".to_string(),
+            visitor_data: Some("VISITOR_DATA_FIXTURE".to_string()),
+            fetched_at: Instant::now(),
+        }
+    }
+
+    /// VISIONOS answers LOGIN_REQUIRED without `X-Goog-Visitor-Id`. This is the
+    /// header whose absence in the second (now deleted) request builder froze
+    /// playback ~20 seconds in, so assert the profile demands it.
+    #[test]
+    fn visionos_requires_the_visitor_id() {
+        let profile = profile_for("visionos", &identity_with_visitor());
+        assert!(profile.send_visitor_id, "VISIONOS must send X-Goog-Visitor-Id");
+        assert_eq!(profile.header_name, "101");
+        assert_eq!(profile.context["client"]["clientName"], "VISIONOS");
+    }
+
+    /// The player ladder must never fall back to a client that half-works. IOS
+    /// answers OK and hands over direct URLs, then stops serving at 60s - which
+    /// reads as a player bug, not a client bug. See media::refresh_stream_url.
+    #[test]
+    fn ios_is_not_a_silent_fallback() {
+        // The profile still exists (useful for diagnostics) but callers that pick
+        // a replacement client must not reach for it.
+        let source = include_str!("media.rs");
+        let ladder_line = source
+            .lines()
+            .find(|l| l.contains("for client in ["))
+            .expect("refresh_stream_url ladder not found");
+        assert!(
+            ladder_line.contains("visionos"),
+            "URL refresh must try visionos: {ladder_line}"
+        );
+        assert!(
+            !ladder_line.contains("\"ios\""),
+            "URL refresh must not fall back to the 60s-capped ios client: {ladder_line}"
+        );
+    }
+
+    /// Every web-family client carries the scraped visitor id; the mobile-app
+    /// clients do not, because they authenticate differently.
+    #[test]
+    fn visitor_id_policy_per_client() {
+        let id = identity_with_visitor();
+        for client in ["web", "web_embedded", "visionos"] {
+            assert!(
+                profile_for(client, &id).send_visitor_id,
+                "{client} should send the visitor id"
+            );
+        }
+        for client in ["ios", "android_vr", "tv"] {
+            assert!(
+                !profile_for(client, &id).send_visitor_id,
+                "{client} should not send the visitor id"
+            );
+        }
+    }
 }

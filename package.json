@@ -16,7 +16,8 @@
     "test:live": "npm run test:live:dash && npm run test:live:visionos",
     "test:live:dash": "esbuild tests/live-dash.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/live.mjs && node node_modules/.cache/live.mjs",
     "test:live:visionos": "esbuild tests/live-visionos-pipeline.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/vpipe.mjs && node node_modules/.cache/vpipe.mjs",
-    "test": "npm run test:fixtures",
+    "test": "npm run test:ladder && npm run test:fixtures",
+    "test:ladder": "esbuild tests/client-ladder.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/ladder.mjs && node node_modules/.cache/ladder.mjs",
     "test:fixtures": "esbuild tests/mapper-fixtures.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t1.mjs && node node_modules/.cache/t1.mjs && esbuild tests/dash-fixtures.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t2.mjs && node node_modules/.cache/t2.mjs"
   },
   "devDependencies": {

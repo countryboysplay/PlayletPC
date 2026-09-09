@@ -160,8 +160,19 @@ class SettingsStore {
   get disableShorts(): boolean {
     return this.get<boolean>('content_feed.disable_shorts')
   }
+  /**
+   * The Invidious backend is disabled.
+   *
+   * The public instance network has largely stopped serving video - of 28 well-known
+   * instances probed, one answered the API and then refused every video - so offering
+   * it as a choice mostly produces confusing failures, and it muddies playback
+   * debugging by adding a second code path that behaves differently.
+   *
+   * The client code is left in place. This getter is the single switch, so turning it
+   * back on is a one-line change if the network recovers.
+   */
   get backend(): 'playlet' | 'invidious' {
-    return this.get<'playlet' | 'invidious'>('backend.selected') ?? 'playlet'
+    return 'playlet'
   }
   get instance(): string {
     return this.get<string>('invidious.instance') ?? ''
