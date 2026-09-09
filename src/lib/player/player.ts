@@ -112,20 +112,37 @@ const DEFAULTS: Omit<ResolvedLoadOptions, 'instance'> = {
 const STALL_TIMEOUT_MS = 12000;
 const TICK_MS = 100;
 
-function codecPreferenceList(pref: string): string[] {
+// Codec preferences are matched by PREFIX against the codec string in the manifest
+// (shaka's `choosePreferredCodecs` does `variant.video.codecs.startsWith(pref)`,
+// and so does `pickVariantForHeight` below). The first preference with ANY match
+// wins outright and every other codec is discarded, so a near-miss here is not a
+// near-miss - it is a silent codec downgrade.
+//
+// Both VP9 spellings are listed because both occur. YouTube's clients disagree:
+// VISIONOS sends a bare `vp9`, IOS sends `vp09.00.51.08`. The manifest builder
+// normalises the bare form to `vp09.*` (see `fullyQualifyCodecs`, and the comment
+// there for why that normalisation is mandatory), so `vp09` is what we now emit -
+// but `vp09` does not startsWith-match `vp9`, and a list carrying only `vp9` would
+// match nothing, fall through to H.264, and cap playback at 1080p. That pairing is
+// exactly the bug that shipped.
+const VP9 = ['vp09', 'vp9'];
+const AV1 = ['av01'];
+const H264 = ['avc1', 'avc3'];
+
+export function codecPreferenceList(pref: string): string[] {
   switch (pref) {
     case 'av1':
-      return ['av01', 'vp9', 'avc1'];
+      return [...AV1, ...VP9, ...H264];
     case 'vp9':
-      return ['vp9', 'avc1', 'av01'];
+      return [...VP9, ...H264, ...AV1];
     case 'h264':
-      return ['avc1', 'vp9', 'av01'];
+      return [...H264, ...VP9, ...AV1];
     default:
       // WebView2/Chromium hardware-decodes VP9 on nearly all Win11 GPUs; AV1
       // hardware decode is Intel Xe / RTX 30 / RDNA2 and newer only, and the
       // dav1d software path will melt a laptop at 1440p+. VP9 first is the
       // QoE-correct default, not the bitrate-correct one.
-      return ['vp9', 'avc1', 'av01'];
+      return [...VP9, ...H264, ...AV1];
   }
 }
 

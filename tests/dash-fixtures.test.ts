@@ -16,6 +16,7 @@ import * as path from 'node:path';
 import {
   buildDashManifest,
   buildDashManifestDetailed,
+  fullyQualifyCodecs,
   pickProgressiveFallback,
   parseMimeType,
   toIsoDuration,
@@ -629,6 +630,58 @@ for (const [xml, label] of badCases) {
   ok(rejected, `parser rejects: ${label}`);
 }
 ok(parseXml('<a x="1"><b/><c>t</c></a>').children.length === 2, 'parser accepts valid XML');
+
+/* ------------------------------------------------------------------ *
+ * Codec strings must be fully qualified (the 1080p-ceiling bug)
+ * ------------------------------------------------------------------ */
+
+section('fullyQualifyCodecs');
+
+// VISIONOS - the client this app plays with - sends a BARE `vp9`. Chromium's
+// MediaSource.isTypeSupported accepts it, but mediaCapabilities.decodingInfo (which
+// is what shaka filters on) rejects it as under-specified and reports supported:false
+// at EVERY resolution. shaka then drops all VP9 variants, leaving H.264, whose
+// YouTube ladder stops at 1080p. That was the entire cause of "can't select above
+// 1080p" - no error, no log, just a missing half of the ladder.
+//
+// The expected levels below are YouTube's own, taken from a client that does send a
+// qualified string, so the two agree rung for rung.
+eq(fullyQualifyCodecs('vp9', 'video', { width: 256, height: 144, fps: 30 }), 'vp09.00.11.08', '144p30 -> level 11');
+eq(fullyQualifyCodecs('vp9', 'video', { width: 426, height: 240, fps: 30 }), 'vp09.00.20.08', '240p30 -> level 20');
+eq(fullyQualifyCodecs('vp9', 'video', { width: 640, height: 360, fps: 30 }), 'vp09.00.21.08', '360p30 -> level 21');
+eq(fullyQualifyCodecs('vp9', 'video', { width: 854, height: 480, fps: 30 }), 'vp09.00.30.08', '480p30 -> level 30');
+eq(fullyQualifyCodecs('vp9', 'video', { width: 1280, height: 720, fps: 60 }), 'vp09.00.40.08', '720p60 -> level 40');
+eq(fullyQualifyCodecs('vp9', 'video', { width: 1920, height: 1080, fps: 60 }), 'vp09.00.41.08', '1080p60 -> level 41');
+eq(fullyQualifyCodecs('vp9', 'video', { width: 2560, height: 1440, fps: 60 }), 'vp09.00.50.08', '1440p60 -> level 50');
+eq(fullyQualifyCodecs('vp9', 'video', { width: 3840, height: 2160, fps: 60 }), 'vp09.00.51.08', '2160p60 -> level 51');
+
+// Frame rate matters: the same picture size at 30fps needs a lower level than at 60.
+eq(fullyQualifyCodecs('vp9', 'video', { width: 1920, height: 1080, fps: 30 }), 'vp09.00.40.08', '1080p30 -> level 40');
+
+// Already-qualified strings, other codecs and audio are passed straight through.
+eq(fullyQualifyCodecs('vp09.00.51.08', 'video', { width: 3840, height: 2160, fps: 60 }), 'vp09.00.51.08', 'qualified vp09 is untouched');
+eq(fullyQualifyCodecs('av01.0.13M.08', 'video', { width: 3840, height: 2160, fps: 60 }), 'av01.0.13M.08', 'av01 is untouched');
+eq(fullyQualifyCodecs('avc1.64002a', 'video', { width: 1920, height: 1080, fps: 60 }), 'avc1.64002a', 'avc1 is untouched');
+eq(fullyQualifyCodecs('opus', 'audio', {}), 'opus', 'audio codecs are never rewritten');
+eq(fullyQualifyCodecs('vp9', 'video', {}), 'vp09.00.41.08', 'unknown dimensions fall back to a 1080p-class level');
+eq(fullyQualifyCodecs('vp8', 'video', { width: 640, height: 360, fps: 30 }), 'vp08.00.21.08', 'bare vp8 is qualified too');
+
+// End to end: a bare-vp9 ladder must emit qualified strings in the MPD.
+{
+  const formats: AdaptiveFormatInput[] = [
+    { itag: 315, mimeType: 'video/webm; codecs="vp9"', bitrate: 26523399, width: 3840, height: 2160, fps: 60,
+      initRange: { start: 0, end: 219 }, indexRange: { start: 220, end: 2421 }, url: 'https://x/315' },
+    { itag: 303, mimeType: 'video/webm; codecs="vp9"', bitrate: 4652291, width: 1920, height: 1080, fps: 60,
+      initRange: { start: 0, end: 218 }, indexRange: { start: 219, end: 2413 }, url: 'https://x/303' },
+  ];
+  const mpd = buildDashManifest(formats, { durationSeconds: 60, rewriteUrl: u => u });
+  ok(mpd.includes('codecs="vp09.00.51.08"'), 'MPD carries the qualified 2160p vp09 string');
+  ok(mpd.includes('codecs="vp09.00.41.08"'), 'MPD carries the qualified 1080p vp09 string');
+  ok(!/codecs="vp9"/.test(mpd), 'MPD contains no bare vp9 string anywhere');
+  // Both rungs must stay in ONE AdaptationSet, or ABR cannot switch between them.
+  eq(buildDashManifestDetailed(formats, { durationSeconds: 60, rewriteUrl: u => u }).adaptationSetCount, 1,
+     'differing vp09 levels still group into a single AdaptationSet');
+}
 
 /* ------------------------------------------------------------------ *
  * Tally

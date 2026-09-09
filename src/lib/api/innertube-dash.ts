@@ -146,6 +146,80 @@ export function parseMimeType(mimeType: unknown): ParsedMime | undefined {
   return { base, type: base.split('/')[0], codecs };
 }
 
+/**
+ * VP9 bitstream levels: [level code, max luma sample rate, max luma picture size].
+ *
+ * Needed because YouTube hands some clients a BARE `vp9` codec string, and a bare
+ * string is fatal downstream - see `fullyQualifyCodecs`. Reproducing the level table
+ * lets us emit the same `vp09.00.LL.08` value YouTube itself uses on the clients that
+ * do send a qualified string (verified rung-for-rung against a real ladder: 144p->11,
+ * 240p->20, 360p->21, 480p->30, 720p60->40, 1080p60->41, 1440p60->50, 2160p60->51).
+ */
+const VP9_LEVELS: Array<[string, number, number]> = [
+  ['10', 829_440, 36_864],
+  ['11', 2_764_800, 73_728],
+  ['20', 4_608_000, 122_880],
+  ['21', 9_216_000, 245_760],
+  ['30', 20_736_000, 552_960],
+  ['31', 36_864_000, 983_040],
+  ['40', 83_558_400, 2_228_224],
+  ['41', 160_432_128, 2_228_224],
+  ['50', 311_951_360, 8_912_896],
+  ['51', 588_251_136, 8_912_896],
+  ['52', 1_176_502_272, 8_912_896],
+  ['60', 1_176_502_272, 35_651_584],
+  ['61', 2_353_004_544, 35_651_584],
+  ['62', 4_706_009_088, 35_651_584],
+];
+
+function vp9Level(width?: number, height?: number, fps?: number): string {
+  const w = width ?? 0;
+  const h = height ?? 0;
+  if (w <= 0 || h <= 0) return '41'; // unknown: 1080p-class, the safe middle
+  const pictureSize = w * h;
+  const sampleRate = pictureSize * (fps && fps > 0 ? fps : 30);
+  for (const [code, maxRate, maxSize] of VP9_LEVELS) {
+    if (sampleRate <= maxRate && pictureSize <= maxSize) return code;
+  }
+  return VP9_LEVELS[VP9_LEVELS.length - 1][0];
+}
+
+/**
+ * Expand an under-specified codec string into its full RFC 6381 form.
+ *
+ * THIS IS LOAD-BEARING, and the reason is not obvious. The VISIONOS client - the one
+ * this app plays with - returns `codecs="vp9"`, where other clients return
+ * `codecs="vp09.00.51.08"`. Both are accepted by `MediaSource.isTypeSupported`, so a
+ * bare string looks perfectly healthy. But shaka does not filter on isTypeSupported:
+ * it calls `navigator.mediaCapabilities.decodingInfo()`, which REJECTS a bare `vp9`
+ * as under-specified and answers `supported: false` at every resolution. shaka then
+ * drops every VP9 variant, leaving only AV1 and H.264 - and since YouTube's H.264
+ * ladder stops at 1080p, playback silently capped at 1080p with no error anywhere.
+ *
+ * Measured in Chromium (the WebView2 engine), 2026-09-09:
+ *   isTypeSupported('video/webm; codecs="vp9"')            -> true
+ *   decodingInfo({contentType: 'video/webm; codecs="vp9"'}) -> supported: false
+ *   decodingInfo(... 'vp09.00.51.08' ... @2160p60)          -> supported, smooth,
+ *                                                              powerEfficient
+ */
+export function fullyQualifyCodecs(
+  codecs: string,
+  contentType: 'video' | 'audio',
+  dims: { width?: number; height?: number; fps?: number }
+): string {
+  if (contentType !== 'video') return codecs;
+  const first = codecs.split(',')[0].trim();
+  const lower = first.toLowerCase();
+  // Only the bare forms need help; anything already carrying parameters is fine.
+  if (lower === 'vp9' || lower === 'vp09') {
+    return `vp09.00.${vp9Level(dims.width, dims.height, dims.fps)}.08`;
+  }
+  if (lower === 'vp8' || lower === 'vp08') {
+    return `vp08.00.${vp9Level(dims.width, dims.height, dims.fps)}.08`;
+  }
+  return codecs;
+}
+
 function normRange(r: ByteRangeInput | null | undefined): string | undefined {
   if (!r || typeof r !== 'object') return undefined;
   const start = num(r.start);
@@ -277,6 +351,14 @@ function normalizeFormats(
       continue;
     }
 
+    // Must happen before the codec is used for grouping OR emitted, so the
+    // AdaptationSet key and the Representation@codecs stay in agreement.
+    const qualifiedCodecs = fullyQualifyCodecs(mime.codecs, contentType, {
+      width,
+      height,
+      fps: num(f.fps),
+    });
+
     const bandwidth = num(f.bitrate) ?? num(f.averageBitrate);
     if (bandwidth === undefined || bandwidth <= 0) {
       skip('missing/invalid bitrate');
@@ -288,8 +370,8 @@ function normalizeFormats(
       itag,
       contentType,
       mimeBase: mime.base,
-      codecs: mime.codecs,
-      codecKey: codecFamily(mime.codecs, mime.base),
+      codecs: qualifiedCodecs,
+      codecKey: codecFamily(qualifiedCodecs, mime.base),
       bandwidth: Math.round(bandwidth),
       url,
       indexRange,
