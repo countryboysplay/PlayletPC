@@ -101,6 +101,45 @@ class LibraryStore {
     await storage.set(KEYS.subscriptions, this.subs)
   }
 
+  /**
+   * Merge subscriptions discovered on a signed-in YouTube account into the local list.
+   *
+   * Deliberately additive. A local subscription the account does not have is kept:
+   * the user may have subscribed here while signed out, and silently deleting that
+   * because YouTube did not return it would be destroying data the app promised to
+   * keep on this PC. An existing entry is refreshed (name/avatar change) but keeps
+   * its original `addedAt`, so recency ordering survives a re-import.
+   *
+   * Returns how many were newly added, so the caller can report it.
+   */
+  async mergeSubscriptions(list: Array<Omit<Subscription, 'addedAt'>>): Promise<number> {
+    let added = 0
+    const byId = new Map(this.subs.map(s => [s.authorId, s]))
+    for (const entry of list) {
+      if (!entry.authorId) continue
+      const existing = byId.get(entry.authorId)
+      if (existing) {
+        byId.set(entry.authorId, {
+          ...existing,
+          author: entry.author || existing.author,
+          thumbnail: entry.thumbnail || existing.thumbnail
+        })
+      } else {
+        byId.set(entry.authorId, { ...entry, addedAt: Date.now() })
+        added++
+      }
+    }
+    if (added === 0 && byId.size === this.subs.length) {
+      // Nothing new; still persist the refreshed names/avatars.
+      this.subs = [...byId.values()]
+      await storage.set(KEYS.subscriptions, this.subs)
+      return 0
+    }
+    this.subs = [...byId.values()].sort((a, b) => b.addedAt - a.addedAt)
+    await storage.set(KEYS.subscriptions, this.subs)
+    return added
+  }
+
   // ---- Watch history -----------------------------------------------------
 
   getResumePosition(videoId: string): number {

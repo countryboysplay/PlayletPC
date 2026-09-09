@@ -4,6 +4,7 @@
   import { library } from '../lib/stores/library.svelte'
   import { settings } from '../lib/stores/settings.svelte'
   import { router } from '../lib/router.svelte'
+  import { account } from '../lib/stores/account.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
 
   let videos = $state<VideoSummary[]>([])
@@ -52,14 +53,42 @@
     {/if}
   </header>
 
+  {#if session.accountPlaylists.length > 0}
+    <section class="playlists">
+      <h2 class="section-title">Your playlists</h2>
+      <div class="playlist-row">
+        {#each session.accountPlaylists as pl (pl.playlistId)}
+          <button class="playlist" onclick={() => router.go('playlist', { plid: pl.playlistId })}>
+            {#if pl.playlistThumbnail}
+              <img src={pl.playlistThumbnail} alt="" loading="lazy" />
+            {:else}
+              <div class="playlist-blank" aria-hidden="true"></div>
+            {/if}
+            <span class="playlist-title">{pl.title}</span>
+            <span class="playlist-count">
+              {pl.videoCount === 0 ? 'Empty' : pl.videoCount + (pl.videoCount === 1 ? ' video' : ' videos')}
+            </span>
+          </button>
+        {/each}
+      </div>
+    </section>
+  {/if}
+
   {#if library.subscriptions.length === 0}
     <div class="empty">
-      <h2>You haven't subscribed to anything yet</h2>
-      <p>
-        Subscribe from any channel page and its newest uploads collect here. Subscriptions are
-        stored on this PC — they aren't sent anywhere.
-      </p>
-      <button class="btn accent" onclick={() => router.go('home')}>Browse videos</button>
+      {#if session.accountSyncing}
+        <h2>Getting your subscriptions from YouTube…</h2>
+      {:else}
+        <h2>You haven't subscribed to anything yet</h2>
+        <p>
+          Subscribe from any channel page and its newest uploads collect here. Subscriptions are
+          stored on this PC — they aren't sent anywhere.
+        </p>
+        {#if !account.isSignedIn}
+          <p>Signing in to YouTube brings your existing subscriptions and playlists across.</p>
+        {/if}
+        <button class="btn accent" onclick={() => router.go('home')}>Browse videos</button>
+      {/if}
     </div>
   {:else}
     <section class="channels">
@@ -119,6 +148,54 @@
     display: flex;
     gap: var(--space-2);
     flex-wrap: wrap;
+  }
+
+  .section-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+  }
+
+  .playlist-row {
+    display: flex;
+    gap: var(--space-3);
+    overflow-x: auto;
+    padding-bottom: var(--space-2);
+  }
+
+  .playlist {
+    flex: 0 0 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0;
+    background: none;
+    border: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+  }
+
+  .playlist img,
+  .playlist-blank {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: var(--r-md);
+    background: var(--chip);
+  }
+
+  .playlist-title {
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .playlist-count {
+    font-size: 12px;
+    opacity: 0.7;
   }
 
   .channel-chip {

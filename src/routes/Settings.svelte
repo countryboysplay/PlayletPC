@@ -80,6 +80,23 @@
   function renderable(item: PreferenceNode): boolean {
     return !CUSTOM_KEYS.has(item.key) && item.type !== undefined
   }
+
+  /**
+   * Sign-in only mints a token; it is `syncAccount` that actually pulls the account's
+   * subscriptions and playlists in, so the two are tied together here rather than
+   * leaving the user signed in to an app that looks unchanged.
+   */
+  async function signIn(): Promise<void> {
+    await account.signIn()
+    if (account.isSignedIn) await session.syncAccount({ force: true })
+  }
+
+  async function signOut(): Promise<void> {
+    await account.signOut()
+    // The local subscription list is deliberately left alone: it is the user's own
+    // data on this PC, and signing out of YouTube is not a request to delete it.
+    session.clearAccountData()
+  }
 </script>
 
 <div class="page">
@@ -102,11 +119,29 @@
         <div class="pref-text">
           <span class="pref-label">Signed in to YouTube</span>
           <span class="pref-desc">
-            Playback uses the TV client, which is not limited to a preview. Your account
-            stays on this PC; nothing is shared with anyone but YouTube.
+            Your subscriptions and saved playlists are pulled in from your account. Your
+            account stays on this PC; nothing is shared with anyone but YouTube.
           </span>
         </div>
-        <button class="btn" onclick={() => account.signOut()}>Sign out</button>
+        <button class="btn" onclick={signOut}>Sign out</button>
+      </div>
+      <div class="pref">
+        <div class="pref-text">
+          <span class="pref-label">Account library</span>
+          <span class="pref-desc">
+            {#if session.accountSyncing}
+              Fetching your subscriptions and playlists…
+            {:else if session.accountSyncError}
+              Couldn't reach your account library. {session.accountSyncError}
+            {:else}
+              {library.subscriptions.length} subscription{library.subscriptions.length === 1 ? '' : 's'}
+              and {session.accountPlaylists.length} playlist{session.accountPlaylists.length === 1 ? '' : 's'}.
+              Subscriptions you added on this PC are kept as well as the ones from YouTube.
+            {/if}
+          </span>
+        </div>
+        <button class="btn" disabled={session.accountSyncing}
+          onclick={() => session.syncAccount({ force: true })}>Refresh</button>
       </div>
     {:else if account.state === 'awaiting-code' && account.userCode}
       <div class="signin">
@@ -132,7 +167,7 @@
             games console uses. No password is typed into this app.
           </span>
         </div>
-        <button class="btn accent" onclick={() => account.signIn()}>Sign in</button>
+        <button class="btn accent" onclick={signIn}>Sign in</button>
       </div>
     {/if}
 
