@@ -64,12 +64,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          prerelease: true
           files: src-tauri/target/release/bundle/nsis/*-setup.exe
           body: |
             Unsigned build — SmartScreen warns once (*More info → Run anyway*).
             Per-user install to `%LOCALAPPDATA%\Playlet`, no admin required.
 
-            **Known limitation:** playback stops after 60 seconds. Browsing, search,
-            channels, playlists and SponsorBlock all work. See
-            [docs/STATE-AND-NEXT.md](docs/STATE-AND-NEXT.md) for the diagnosis.
+            Full-length playback at up to 2160p, browsing, search, channels,
+            playlists, subscriptions and SponsorBlock all work. See
+            [docs/STATE-AND-NEXT.md](docs/STATE-AND-NEXT.md) for current state.
