@@ -123,14 +123,137 @@ impl InnertubeState {
     }
 }
 
-/// Pull the current web client version and visitor id out of the YouTube home page.
+/// The markers that carry a visitor id in the home page, in preference order.
 ///
-/// A stale `clientVersion` is not cosmetic: browse calls start answering HTTP 400
-/// once it drifts far enough from what YouTube is serving.
+/// Two, not one, because they are written by different parts of the page and do not
+/// always both survive a layout change or an A/B variant. Measured 2026-09-17: the
+/// home page is currently A/B-served in three build variants and both markers were
+/// present in all of them.
+const VISITOR_MARKERS: &[&str] = &["\"visitorData\":\"", "\"VISITOR_DATA\":\""];
+
+/// Does this look like a visitor id rather than a fragment of markup that happened
+/// to follow the marker?
+///
+/// The token is a percent-encoded base64url protobuf, and **its length depends on
+/// which source produced it.** Measured 2026-09-17: the home page and `/sw.js_data`
+/// both yield 520 characters, while the `responseContext` bootstrap yields 48. The
+/// alphabet observed is alphanumerics plus `%`.
+///
+/// The bounds here are deliberately far wider than any of that, because the
+/// asymmetry is brutal: wrongly rejecting a good token takes playback down
+/// completely, while letting an odd one through costs one failed request. Two
+/// near-misses are worth recording - an earlier draft capped length at 512, which
+/// would have rejected every token the home page serves, and any lower bound above
+/// 48 would silently disable the bootstrap source that exists precisely for when
+/// the others fail. Do not tighten this without re-measuring every source.
+fn is_plausible_visitor_id(value: &str) -> bool {
+    (32..=4096).contains(&value.len())
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '%' | '=' | '.'))
+}
+
+/// Find a visitor-id-shaped token in an arbitrary text blob.
+///
+/// `/sw.js_data` is JSON behind an XSSI prefix with no stable key path, so there is
+/// nothing to index into and the token has to be found by shape. Every token
+/// observed begins `Cg`, which is what a protobuf string in field 1 base64urls to.
+fn scan_for_visitor_id(body: &str) -> Option<String> {
+    let mut rest = body;
+    while let Some(at) = rest.find("\"Cg") {
+        let tail = &rest[at + 1..];
+        let end = match tail.find('"') {
+            Some(end) => end,
+            None => break,
+        };
+        let candidate = &tail[..end];
+        if is_plausible_visitor_id(candidate) {
+            return Some(candidate.to_string());
+        }
+        rest = &tail[end..];
+    }
+    None
+}
+
+/// A visitor id from `/sw.js_data`, which is served independently of the home page.
+async fn visitor_from_sw_js(http: &reqwest::Client) -> Option<String> {
+    let response = http
+        .get(format!("{YOUTUBE_ORIGIN}/sw.js_data"))
+        .header(reqwest::header::USER_AGENT, WEB_UA)
+        .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .header(reqwest::header::COOKIE, CONSENT_COOKIES)
+        .timeout(Duration::from_secs(15))
+        .send()
+        .await
+        .ok()?;
+    let body = response.text().await.ok()?;
+    scan_for_visitor_id(&body)
+}
+
+/// A visitor id from InnerTube itself: every response echoes one back in
+/// `responseContext`, including responses to calls that carried no visitor id.
+/// This is the bootstrap of last resort - it depends on no page markup at all.
+async fn visitor_from_innertube(http: &reqwest::Client, web_version: &str) -> Option<String> {
+    let payload = json!({
+        "context": {
+            "client": { "clientName": "WEB", "clientVersion": web_version, "hl": "en", "gl": "US" }
+        },
+        "browseId": "FEwhat_to_watch"
+    });
+
+    let response = http
+        .post(format!("{INNERTUBE_BASE}browse"))
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::USER_AGENT, WEB_UA)
+        .header(reqwest::header::ORIGIN, YOUTUBE_ORIGIN)
+        .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .header(reqwest::header::COOKIE, CONSENT_COOKIES)
+        .header("X-YouTube-Client-Name", "1")
+        .header("X-YouTube-Client-Version", web_version)
+        .timeout(Duration::from_secs(20))
+        .body(payload.to_string())
+        .send()
+        .await
+        .ok()?;
+
+    let body = response.text().await.ok()?;
+    let parsed: Value = serde_json::from_str(&body).ok()?;
+    let visitor = parsed.get("responseContext")?.get("visitorData")?.as_str()?;
+    if is_plausible_visitor_id(visitor) {
+        Some(visitor.to_string())
+    } else {
+        None
+    }
+}
+
+/// Pull the current web client version and visitor id out of YouTube.
+///
+/// The visitor id is the single most load-bearing string in this app. Without it
+/// *every* playback client answers `LOGIN_REQUIRED - Sign in to confirm you're not
+/// a bot`, while browsing carries on working - so the app looks healthy and plays
+/// nothing. It used to come from exactly one substring match on the home page,
+/// which meant one layout change, one consent interstitial or one network blip
+/// took playback down completely, with no second source to fall back to.
+///
+/// Four independent sources are tried in order. All four were measured on
+/// 2026-09-17 to yield a token VISIONOS accepts; with no token at all VISIONOS
+/// answers LOGIN_REQUIRED, which is the control:
+///
+/// | source                                      | VISIONOS player |
+/// |---------------------------------------------|-----------------|
+/// | home page `"visitorData":"`                 | OK, 28 formats  |
+/// | home page `"VISITOR_DATA":"` (ytcfg)        | OK, 28 formats  |
+/// | `/sw.js_data`                               | OK, 28 formats  |
+/// | `responseContext.visitorData` from a browse | OK, 28 formats  |
+/// | *(none - control)*                          | LOGIN_REQUIRED  |
+///
+/// A stale `clientVersion` is a separate concern and not cosmetic: browse calls
+/// start answering HTTP 400 once it drifts far enough from what YouTube is serving.
 async fn fetch_identity(http: &reqwest::Client) -> Identity {
     let mut web_version = WEB_VERSION_FALLBACK.to_string();
     let mut visitor_data = None;
 
+    // Sources 1 and 2: the home page, which also carries the client version.
     let response = http
         .get(YOUTUBE_ORIGIN)
         .header(reqwest::header::USER_AGENT, WEB_UA)
@@ -145,8 +268,30 @@ async fn fetch_identity(http: &reqwest::Client) -> Identity {
             if let Some(found) = extract_between(&body, "\"INNERTUBE_CLIENT_VERSION\":\"", '"') {
                 web_version = found;
             }
-            visitor_data = extract_between(&body, "\"visitorData\":\"", '"');
+            visitor_data = VISITOR_MARKERS
+                .iter()
+                .find_map(|marker| extract_between(&body, marker, '"'))
+                .filter(|value| is_plausible_visitor_id(value));
         }
+    }
+
+    // Source 3: a different endpoint, so a bad home page render is not fatal.
+    if visitor_data.is_none() {
+        visitor_data = visitor_from_sw_js(http).await;
+    }
+
+    // Source 4: InnerTube itself, which depends on no page markup at all.
+    if visitor_data.is_none() {
+        visitor_data = visitor_from_innertube(http, &web_version).await;
+    }
+
+    if visitor_data.is_none() {
+        // Worth a line on stderr: this is the difference between "YouTube is down"
+        // and "every video fails while the rest of the app looks perfectly fine".
+        eprintln!(
+            "[innertube] no visitor id from any source - playback will answer \
+             LOGIN_REQUIRED until a later scrape succeeds"
+        );
     }
 
     Identity {
@@ -623,6 +768,103 @@ mod tests {
             empty.visitor_data.is_none(),
             "and with no visitor id there is no header - the request YouTube refuses"
         );
+    }
+
+    /// A real token, at the length YouTube actually serves.
+    ///
+    /// 520 characters, alphanumerics plus percent-encoding - measured against the
+    /// live home page on 2026-09-17.
+    fn realistic_visitor_id() -> String {
+        let mut token = String::from("Cgs3a2E5LXMxN0NCQSjJibDVBjIKCgJVUxIEGgAgQ2LfAgrcAjIx");
+        while token.len() < 517 {
+            token.push_str("LllUPWMxZHFUbkNObndDQUdBQWhIOFoxVlgxNmRqTW1");
+        }
+        token.truncate(517);
+        token.push_str("%3D");
+        assert_eq!(token.len(), 520);
+        token
+    }
+
+    /// The bug this guard exists for: a 512-character cap would reject every token
+    /// YouTube actually serves, taking playback down completely while browsing
+    /// carried on working - the exact failure the cascade is meant to prevent.
+    #[test]
+    fn a_real_length_visitor_id_is_accepted() {
+        let token = realistic_visitor_id();
+        assert!(
+            is_plausible_visitor_id(&token),
+            "a 520-char token is what YouTube serves and must be accepted"
+        );
+    }
+
+    /// The `responseContext` bootstrap - the source that exists precisely for when
+    /// the page-scraping sources fail - yields a much shorter token than the home
+    /// page does: 48 characters against 520, measured 2026-09-17. A lower bound
+    /// picked to look safe would disable it, and only on the day it was needed.
+    #[test]
+    fn a_short_bootstrap_visitor_id_is_accepted() {
+        let bootstrap = format!("Cg{}", "b".repeat(46));
+        assert_eq!(bootstrap.len(), 48);
+        assert!(
+            is_plausible_visitor_id(&bootstrap),
+            "the 48-char responseContext token must not be rejected"
+        );
+    }
+
+    #[test]
+    fn markup_is_not_mistaken_for_a_visitor_id() {
+        for junk in [
+            "",
+            "short",
+            "</script><div class=\"x\">",
+            "https://www.youtube.com/watch?v=abc",
+            "{\"key\": \"value\"}",
+        ] {
+            assert!(
+                !is_plausible_visitor_id(junk),
+                "{junk:?} should not pass as a visitor id"
+            );
+        }
+    }
+
+    /// `/sw.js_data` has no stable key path, so the token is found by shape.
+    #[test]
+    fn scan_finds_a_token_in_sw_js_shaped_json() {
+        let token = realistic_visitor_id();
+        let body = format!(")]}}'\n[[\"unrelated\",1,[\"{token}\"],\"tail\"]]");
+        assert_eq!(scan_for_visitor_id(&body).as_deref(), Some(token.as_str()));
+    }
+
+    #[test]
+    fn scan_skips_short_cg_strings_and_keeps_looking() {
+        let token = realistic_visitor_id();
+        // A decoy that starts with Cg but is far too short to be a visitor id.
+        let body = format!("[\"Cgshort\",\"{token}\"]");
+        assert_eq!(scan_for_visitor_id(&body).as_deref(), Some(token.as_str()));
+    }
+
+    #[test]
+    fn scan_returns_none_when_there_is_nothing_to_find() {
+        assert!(scan_for_visitor_id("<html><body>no token here</body></html>").is_none());
+    }
+
+    /// Both home-page markers must work, so one layout change is not fatal.
+    #[test]
+    fn either_home_page_marker_yields_the_token() {
+        let token = realistic_visitor_id();
+        for marker in VISITOR_MARKERS {
+            let key = marker.trim_start_matches('"').trim_end_matches("\":\"");
+            let page = format!("window.ytcfg={{\"{key}\":\"{token}\",\"OTHER\":1}};");
+            let found = VISITOR_MARKERS
+                .iter()
+                .find_map(|m| extract_between(&page, m, '"'))
+                .filter(|v| is_plausible_visitor_id(v));
+            assert_eq!(
+                found.as_deref(),
+                Some(token.as_str()),
+                "marker {marker} should yield the token"
+            );
+        }
     }
 
     /// Every web-family client carries the scraped visitor id; the mobile-app

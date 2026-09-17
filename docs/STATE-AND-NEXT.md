@@ -1,6 +1,6 @@
 # Where this project stands, and what to do next
 
-Last updated: 2026-09-08 (second revision). Written as a handoff — read this before
+Last updated: 2026-09-17 (third revision). Written as a handoff — read this before
 touching playback.
 
 **SOLVED. Playback works, end to end.** The 60-second wall was never a policy limit — it
@@ -11,6 +11,100 @@ It is now the first rung of the player ladder. Section 3 has the evidence.
 Everything below about SABR, PoTokens and attestation is kept because it is true of the
 IOS/WEB/TV clients and because SABR is the fallback if VISIONOS is ever closed — but none
 of it is on the critical path any more.
+
+---
+
+## 0. 2026-09-17: the visitor id is no longer a single point of failure
+
+Reported as "the app stopped working - I think YouTube changed how videos are called."
+
+**YouTube had not changed anything.** Measured the same day against the live API,
+replaying the app's exact request shape: the VISIONOS player call answered `OK` with
+27-28 adaptive formats on five different videos, every one a direct URL with no
+cipher, no `n` and no `pot`; range probes returned HTTP 206 with real media at 1%,
+50% and 99.9% of the file; search, browse and next all answered HTTP 200. The
+installed build played a fresh video at 2560x1440 and kept playing after a seek to
+9:20 of a 10:35 video. Twenty consecutive VISIONOS calls: 20/20 `OK`.
+
+Two red herrings were ruled out by measurement rather than argument:
+
+* **The canary client version.** YouTube is currently A/B-serving three home page
+  build variants, and one of them reports
+  `INNERTUBE_CLIENT_VERSION: 2.20260917.01.00-canary_experiment_2.20260916.01.00`.
+  This looks exactly like the kind of drift that makes browse answer HTTP 400. It
+  does not: all three variants were tested against search, browse and next, and all
+  three answered HTTP 200.
+* **An expired OAuth token.** The stored access token had indeed expired two days
+  earlier, but `accessToken()` refreshed it correctly on launch and the signed-in
+  surfaces loaded. It also never reaches the player - the token goes only to the TV
+  client.
+
+### What actually explains the symptom
+
+The reported symptom was specific: browsing fine, videos refusing to play. That has
+exactly one signature in this codebase, and it was confirmed directly:
+
+| VISIONOS player request | result |
+|---|---|
+| with a valid visitor id | `OK`, 28 formats |
+| **with no visitor id** | `LOGIN_REQUIRED - Sign in to confirm you're not a bot` |
+| **with an invalid visitor id** | `LOGIN_REQUIRED - Sign in to confirm you're not a bot` |
+
+And the ladder has no safety net left. Re-measured on five videos:
+
+| client | result |
+|---|---|
+| visionos | OK, 27-28 formats, media at 1/50/99% |
+| android_vr | LOGIN_REQUIRED |
+| tv | LOGIN_REQUIRED |
+| web / mweb | UNPLAYABLE |
+| **ios** | OK from `/player`, but its URLs now answer **HTTP 403 at every byte offset, including 1%** |
+
+IOS is worth calling out: it is no longer merely capped at 60 seconds, it is dead.
+The `/player` call still answers `OK` with direct URLs, so every cheap health check
+still calls it healthy - which is precisely why it stays out of the ladder.
+
+So as of today the app rests on **one working client, which requires one header,
+which came from one substring match on one page.** Any failure of that scrape -
+a network blip, a consent interstitial, a layout change - takes all playback down
+while browsing carries on working and makes the app look healthy. That is the bug,
+independent of whether it was what bit on the day.
+
+### The fix
+
+`fetch_identity` now tries four independent sources in order. All four were measured
+on 2026-09-17 to produce a token VISIONOS accepts; the no-token control fails:
+
+| source | VISIONOS player |
+|---|---|
+| home page `"visitorData":"` | OK, 28 formats |
+| home page `"VISITOR_DATA":"` (ytcfg) | OK, 28 formats |
+| `/sw.js_data` | OK, 28 formats |
+| `responseContext.visitorData` from a browse call | OK, 28 formats |
+| *(none - control)* | LOGIN_REQUIRED |
+
+The last one is the important one: it depends on no page markup at all. Every
+InnerTube response echoes a visitor id back in `responseContext`, including responses
+to calls that carried none - so the app can always bootstrap one from the API itself.
+
+Candidates are validated by `is_plausible_visitor_id` before use, and a scrape that
+still finds nothing now says so on stderr instead of failing silently.
+
+**One trap worth recording, because it nearly shipped.** The first draft of that
+validator capped token length at 512 characters, which is a reasonable-looking bound
+and completely wrong: measured against the live home page, real tokens are **520
+characters** (alphanumerics plus `%`). That validator would have rejected every token
+YouTube serves and broken playback *entirely*, in the exact way the cascade exists to
+prevent - and every existing test would still have passed, because they all use short
+fixtures.
+
+Token length also turns out to depend on the source: the home page and `/sw.js_data`
+give 520 characters, but the `responseContext` bootstrap gives **48**. So a lower
+bound chosen to look safe would quietly disable the one source that exists for when
+the other three fail, and it would only ever be noticed on the day it was needed.
+The bounds are now deliberately wide (32-4096), both near-misses are written down
+next to them, and `a_real_length_visitor_id_is_accepted` pins a 520-character token.
+Do not tighten without re-measuring every source.
 
 ---
 

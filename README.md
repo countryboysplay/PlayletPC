@@ -14,9 +14,8 @@ defaults — but runs natively on Windows as a Tauri app with a Svelte front end
 - **Search** — with sort, type and duration filters, plus infinite scroll
 - **Channels** — videos, shorts and live tabs, with local subscriptions
 - **Playlists** — browse and play through
-- **Watch** — adaptive DASH playback with quality selection, captions, and keyboard
-  control. **Currently limited to roughly the first minute of a video** by a YouTube-side
-  cap; see `docs/STATE-AND-NEXT.md`
+- **Watch** — adaptive DASH playback at up to 2160p, with quality selection, captions
+  and keyboard control. Whole videos, not the first minute; see `docs/STATE-AND-NEXT.md`
 - **SponsorBlock** — per-category skip / ask / mark-only, using the privacy-preserving
   hash-prefix API so the server never learns which video you are watching
 - **History** — resume where you left off, stored locally

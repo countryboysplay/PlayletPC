@@ -11,15 +11,29 @@
  *                Verified across a whole 635s video - HTTP 206 with real media at
  *                1/25/50/75/95/99.9% of the file. Needs `X-Goog-Visitor-Id` or it
  *                answers LOGIN_REQUIRED. This is yt-dlp's default client.
- *   ANDROID_VR   Usually LOGIN_REQUIRED right now, but cheap to try.
+ *   ANDROID_VR   LOGIN_REQUIRED as of 2026-09-17, but cheap to try.
  *   TVHTML5      What the upstream Roku app uses. Works from Roku hardware.
  *   WEB_EMBEDDED Last resort.
  *
- * IOS is deliberately absent. It answers OK and returns direct URLs, so every cheap
- * check calls it healthy - and then YouTube stops serving it at exactly 60.000s of
- * media. In a fallback ladder that is worse than an outright failure: playback runs
- * ~18-20 seconds (the forward buffer eats the rest of the minute) and silently
- * freezes, which reads as a player bug and hides the real cause.
+ * Re-measured 2026-09-17 against live YouTube, on five videos:
+ *
+ *   visionos     OK, 27-28 formats, all direct URLs; media at 1/50/99% of the file
+ *   android_vr   LOGIN_REQUIRED
+ *   tv           LOGIN_REQUIRED
+ *   web / mweb   UNPLAYABLE
+ *
+ * So VISIONOS is not merely the first rung - it is currently the ONLY rung that
+ * serves media. The others are kept because they cost one request each and have
+ * reopened before, but nothing below VISIONOS should be mistaken for a safety net.
+ * That is why the visitor id now comes from a four-source cascade in
+ * `innertube.rs::fetch_identity`: with one client working and one source for the
+ * one header it requires, a single scrape failure took all playback down.
+ *
+ * IOS is deliberately absent, and is now worse than when that was decided. It used
+ * to answer OK, hand over direct URLs, and then stop serving at exactly 60.000s -
+ * bad enough, because playback ran ~18-20 seconds and froze, which reads as a
+ * player bug. Measured 2026-09-17, its URLs now answer **HTTP 403 at every byte
+ * offset, including 1%**: not capped any more, simply dead. Keep it out.
  */
 
 export type PlayerClientName = 'visionos' | 'android_vr' | 'tv' | 'web_embedded'
