@@ -19,6 +19,7 @@
 import type {
   AdaptiveFormat,
   Caption,
+  Chapter,
   ChannelDetails,
   ChannelSummary,
   FormatStream,
@@ -1100,6 +1101,16 @@ export function mapRecommendations(json: Any, ctx: ItemCtx = {}): VideoSummary[]
   }
   if (!results.length) results = continuationItems(json)
   return onlyVideos(mapFeedItems(results, ctx))
+}
+
+/** /next -> Chapter[], from the player bar's chapter markers (exact start times). */
+export function mapChapters(json: Any): Chapter[] {
+  const maps = arr(get(json, 'playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap'))
+  const chapters = arr(maps.find((m) => arr(m?.value?.chapters).length)?.value?.chapters)
+  return chapters
+    .map((c) => c?.chapterRenderer)
+    .filter((c) => c && Number.isFinite(Number(c.timeRangeStartMillis)))
+    .map((c) => ({ title: readText(c.title), start: Number(c.timeRangeStartMillis) / 1000 }))
 }
 
 /* ------------------------------------------------------------------ */

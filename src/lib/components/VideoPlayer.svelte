@@ -58,6 +58,8 @@
   let progressTimer: ReturnType<typeof setInterval> | null = null
 
   const progressPercent = $derived(duration > 0 ? (currentTime / duration) * 100 : 0)
+  const chapters = $derived(video.chapters ?? [])
+  const chapter = $derived(chapters.findLast(c => c.start <= currentTime))
 
   /** Map the stored per-category preference onto the controller's action vocabulary. */
   function sponsorCategoryConfig(): Record<string, 'skip' | 'notify' | 'ignore'> {
@@ -483,6 +485,11 @@
           ></span>
         {/each}
         <span class="played" style="width: {progressPercent}%"></span>
+        {#if duration > 0}
+          {#each chapters.slice(1) as c}
+            <span class="chapter-tick" style="left: {(c.start / duration) * 100}%"></span>
+          {/each}
+        {/if}
         <span class="knob" style="left: {progressPercent}%"></span>
       </div>
     </div>
@@ -519,6 +526,9 @@
       </div>
 
       <span class="time tnum">{formatDuration(currentTime)} / {formatDuration(duration)}</span>
+      {#if chapter?.title}
+        <span class="chapter" title={chapter.title}>{chapter.title}</span>
+      {/if}
 
       <div class="spacer"></div>
 
@@ -784,6 +794,25 @@
   }
 
   .time {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  /* A gap in the bar at each chapter start. */
+  .chapter-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  .chapter {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     font-size: 12px;
     color: rgba(255, 255, 255, 0.82);
   }

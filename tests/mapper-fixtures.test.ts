@@ -22,6 +22,7 @@ import {
   mapPlayerResponse,
   mapPlaylist,
   mapRecommendations,
+  mapChapters,
   mapSearchResults,
   parseCompactNumber,
   parseDuration,
@@ -620,6 +621,17 @@ eq(mapChannel({}).subCount, 0, 'mapChannel({}) -> subCount 0 default')
 eq(mapChannel({}).authorThumbnails, [], 'mapChannel({}) -> empty thumbnails array')
 eq(mapChannel({}).authorBanners, [], 'mapChannel({}) -> empty banners array')
 eq(mapChannelVideos({}).videos.length, 0, 'mapChannelVideos({}) -> 0 videos')
+
+section('next.web.chapters.json  (2hJkprFnzhY, 12 chapters)')
+
+const chapters = mapChapters(load('next.web.chapters.json'))
+eq(chapters.length, 12, '12 chapters')
+eq(chapters[0], { title: 'Introduction', start: 0 }, 'first chapter starts at 0')
+eq(chapters[1], { title: 'State of the war in Ukraine', start: 60 }, 'start is timeRangeStartMillis in seconds')
+eq(chapters[11], { title: 'Nature of war', start: 10013 }, 'last chapter')
+ok(chapters.every((c, i) => i === 0 || c.start > chapters[i - 1].start), 'chapters are in order')
+eq(mapChapters(nextJson), [], 'a video without chapters (heatmap only) -> []')
+eq(mapChapters({}), [], 'mapChapters({}) -> []')
 
 /* =================================================================== */
 console.log(`\n================================`)
