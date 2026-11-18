@@ -16,6 +16,8 @@ defaults — but runs natively on Windows as a Tauri app with a Svelte front end
 - **Playlists** — browse and play through
 - **Watch** — adaptive DASH playback at up to 2160p, with quality selection, chapters on
   the seek bar, a CC menu that remembers your caption language, and keyboard control. Whole videos, not the first minute
+- **Picture-in-picture** — pop the video into a floating window and keep watching while
+  you browse; leaving the floating window brings you back to the video
 - **Queue** — "Play next" and "Add to queue" on any video; the queue plays before the
   recommendations and lasts until the app closes
 - **Windows media controls** — title and artwork in the media flyout and on the lock

@@ -31,6 +31,36 @@
   })
 
   const route = $derived(router.current)
+
+  // The video Watch shows. While it is in picture-in-picture, Watch stays mounted (hidden)
+  // after the user leaves the watch route, so playback, media keys and the queue keep going.
+  let watchId = $state('')
+  let inPip = $state(false)
+  $effect.pre(() => {
+    if (route.name !== 'watch') return
+    watchId = route.params.v ?? ''
+    inPip = Boolean(document.pictureInPictureElement)
+  })
+
+  $effect(() => {
+    const enter = () => (inPip = true)
+    const leave = () => {
+      // Leaving PiP returns to the video: the browser doesn't say whether that was
+      // "back to tab" or close. inPip clears once the watch route is live (the route
+      // changes on hashchange, later), so Watch is never unmounted in between.
+      if (router.current.name !== 'watch') {
+        router.go('watch', { v: watchId })
+      } else {
+        inPip = false
+      }
+    }
+    document.addEventListener('enterpictureinpicture', enter)
+    document.addEventListener('leavepictureinpicture', leave)
+    return () => {
+      document.removeEventListener('enterpictureinpicture', enter)
+      document.removeEventListener('leavepictureinpicture', leave)
+    }
+  })
 </script>
 
 <div class="shell">
@@ -59,22 +89,27 @@
             <button class="ghost" onclick={() => router.go('settings')}>Choose an instance</button>
           </div>
         </div>
-      {:else if route.name === 'home'}
-        <Home />
-      {:else if route.name === 'search'}
-        <Search query={route.params.q ?? ''} />
-      {:else if route.name === 'watch'}
-        <Watch videoId={route.params.v ?? ''} />
-      {:else if route.name === 'channel'}
-        <Channel ucid={route.params.ucid ?? ''} />
-      {:else if route.name === 'playlist'}
-        <Playlist plid={route.params.plid ?? ''} />
-      {:else if route.name === 'subscriptions'}
-        <Subscriptions />
-      {:else if route.name === 'history'}
-        <History />
-      {:else if route.name === 'settings'}
-        <Settings />
+      {:else}
+        {#if route.name === 'watch' || inPip}
+          <div hidden={route.name !== 'watch'}>
+            <Watch videoId={watchId} />
+          </div>
+        {/if}
+        {#if route.name === 'home'}
+          <Home />
+        {:else if route.name === 'search'}
+          <Search query={route.params.q ?? ''} />
+        {:else if route.name === 'channel'}
+          <Channel ucid={route.params.ucid ?? ''} />
+        {:else if route.name === 'playlist'}
+          <Playlist plid={route.params.plid ?? ''} />
+        {:else if route.name === 'subscriptions'}
+          <Subscriptions />
+        {:else if route.name === 'history'}
+          <History />
+        {:else if route.name === 'settings'}
+          <Settings />
+        {/if}
       {/if}
     </main>
   </div>
