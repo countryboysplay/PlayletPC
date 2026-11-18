@@ -21,6 +21,11 @@
   let descriptionExpanded = $state(false)
 
   const subscribed = $derived(video ? library.isSubscribed(video.authorId) : false)
+  // No manifest on the direct backend means the ladder fell through to the ANDROID
+  // client, whose only usable stream is muxed 360p. Say so rather than look broken.
+  const reducedQuality = $derived(
+    Boolean(video && session.isDirect && !video.dashManifestXml && !video.liveNow && !video.hlsUrl)
+  )
   const startAt = $derived(video ? library.getResumePosition(video.videoId) : 0)
   const recommendations = $derived(
     video ? (settings.disableShorts ? video.recommendedVideos.filter(v => v.type !== 'shortVideo') : video.recommendedVideos) : []
@@ -94,6 +99,12 @@
       {#key video.videoId}
         <VideoPlayer {video} {startAt} onProgress={recordProgress} onEnded={playNext} />
       {/key}
+
+      {#if reducedQuality}
+        <p class="fallback-note" role="status">
+          YouTube's full-quality stream isn't available right now, so this is playing at 360p.
+        </p>
+      {/if}
 
       <h1 class="title">{video.title}</h1>
 
@@ -197,6 +208,12 @@
     display: flex;
     gap: var(--space-3);
     justify-content: center;
+  }
+
+  .fallback-note {
+    margin: var(--space-2) 0 0;
+    color: var(--ink-dim);
+    font-size: 13px;
   }
 
   .title {

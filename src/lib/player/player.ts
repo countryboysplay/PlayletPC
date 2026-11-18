@@ -252,10 +252,6 @@ export class PlayletPlayer {
       instance: normalizeInstance(opts.instance ?? this.defaults.instance ?? ''),
     } as ResolvedLoadOptions;
 
-    if (!resolved.instance) {
-      throw new PlaybackError({ code: 'NO_PLAYABLE_SOURCE', message: 'No Invidious instance configured.', instanceFailure: false, retryable: false });
-    }
-
     const token = ++this.loadToken;
     this.abort?.abort();
     const abort = new AbortController();
@@ -527,13 +523,14 @@ export class PlayletPlayer {
    * URLs expire (~6h) and are IP-bound, so a stream that started fine can die
    * an hour in.
    */
-  async recover(opts: { forceProxy?: boolean } = {}): Promise<void> {
+  /** `video`: fresh stream data to resume with, e.g. after the old URLs expired. */
+  async recover(opts: { forceProxy?: boolean; video?: InvidiousVideo } = {}): Promise<void> {
     if (!this.currentVideo || !this.currentOpts || this.recovering) return;
     this.recovering = true;
     const at = this.el.currentTime;
     const wasPlaying = !this.el.paused;
     try {
-      await this.load(this.currentVideo, {
+      await this.load(opts.video ?? this.currentVideo, {
         ...this.currentOpts,
         proxyMode: opts.forceProxy ? 'always' : this.currentOpts.proxyMode,
         startTime: at,
@@ -812,7 +809,7 @@ export class PlayletPlayer {
 
   private async loadCaptions(video: InvidiousVideo, opts: ResolvedLoadOptions, token: number): Promise<void> {
     let list: InvidiousCaption[] = Array.isArray(video.captions) ? video.captions : [];
-    if (list.length === 0) {
+    if (list.length === 0 && opts.instance) {
       try {
         list = await fetchCaptionList(opts.instance, video.videoId, { retries: 1, signal: this.abort?.signal });
       } catch (e) {

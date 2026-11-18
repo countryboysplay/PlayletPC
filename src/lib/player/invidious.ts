@@ -45,6 +45,9 @@ export function getFetchImpl(): FetchLike {
 
 export function normalizeInstance(instance: string): string {
   let base = instance.trim();
+  // No instance stays no instance: the direct backend has none, and turning '' into
+  // 'https:' sent it chasing Invidious URLs at a host named "https" (18s of DNS failures).
+  if (!base) return '';
   if (!/^https?:\/\//i.test(base)) base = 'https://' + base;
   return base.replace(/\/+$/, '');
 }
@@ -83,6 +86,8 @@ export function proxifyMediaUrl(instance: string, rawUrl: string): string {
 
 /** Absolute URL for a caption entry (Invidious returns a relative path). */
 export function absoluteCaptionUrl(instance: string, caption: InvidiousCaption): string {
+  // The direct backend's caption URLs are already absolute and it has no instance to join.
+  if (/^https?:\/\//i.test(caption.url)) return caption.url;
   const base = normalizeInstance(instance);
   try {
     return new URL(caption.url, base + '/').toString();

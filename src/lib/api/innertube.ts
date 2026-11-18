@@ -343,13 +343,8 @@ export class InnertubeClient implements Backend {
       if (cached) return cached
     }
 
-    // Playback data comes from a client ladder; recommendations come from WEB, because
-    // the IOS /next response is enormous and carries no parseable renderers.
-    //
-    // IOS is first because it is the only client measured to return direct, unciphered
-    // URLs from a desktop connection. The rest are retried in turn so that a future
-    // lockdown of one client degrades rather than breaks the app - notably `tv`, which
-    // is what the upstream Roku app uses and which works from a real Roku.
+    // Playback data comes from the client ladder (order and reasons: player-clients.ts);
+    // recommendations come from WEB, the only client whose /next has parseable renderers.
     const video = await this.fetchPlayable(videoId)
 
     // Recommendations are a nice-to-have; never fail the video for them.

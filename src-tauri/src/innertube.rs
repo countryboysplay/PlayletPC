@@ -17,8 +17,11 @@
 //!     PoToken requirement, and - critically - no 60-second serve limit. It handles
 //!     playback. This is also what yt-dlp uses by default.
 //!   * IOS also returns direct URLs but YouTube stops serving it after exactly
-//!     60.000 seconds of media, so it is a fallback only. TVHTML5 and ANDROID_VR
+//!     60.000 seconds of media, so it is kept out of playback. TVHTML5 and ANDROID_VR
 //!     answer LOGIN_REQUIRED; WEB answers UNPLAYABLE without a PoToken.
+//!   * ANDROID is the measured fallback (2026-11-18): its adaptive formats are all
+//!     ciphered, but its one muxed 360p format is a direct URL that serves the whole
+//!     file. Degraded, but it plays if VISIONOS is ever closed.
 //!   * IOS/VISIONOS search/browse returns opaque `elementRenderer` blobs, so WEB
 //!     handles search, browse and recommendations, where classic renderers remain.
 //!
@@ -51,6 +54,8 @@ const VISIONOS_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleW
 /// Used only until the real version is scraped from the YouTube home page.
 const WEB_VERSION_FALLBACK: &str = "2.20260907.06.00";
 const IOS_VERSION: &str = "20.10.4";
+const ANDROID_VERSION: &str = "21.26.364";
+const ANDROID_UA: &str = "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip";
 const VISIONOS_VERSION: &str = "1.02";
 
 /// Consent and preference cookies, as yt-dlp seeds them. Measured as NOT required
@@ -431,6 +436,25 @@ fn profile_for(name: &str, identity: &Identity) -> ClientProfile {
             ua: IOS_UA,
             header_name: "5",
             header_version: IOS_VERSION.to_string(),
+            send_visitor_id: false,
+        },
+        // The fallback when VISIONOS fails: only muxed itag 18 (360p) is usable, as its
+        // adaptive formats are ciphered. Needs no visitor id and no PoToken.
+        "android" => ClientProfile {
+            context: json!({
+                "client": {
+                    "clientName": "ANDROID",
+                    "clientVersion": ANDROID_VERSION,
+                    "androidSdkVersion": 30,
+                    "osName": "Android",
+                    "osVersion": "11",
+                    "hl": "en",
+                    "gl": "US",
+                }
+            }),
+            ua: ANDROID_UA,
+            header_name: "3",
+            header_version: ANDROID_VERSION.to_string(),
             send_visitor_id: false,
         },
         "android_vr" => ClientProfile {
@@ -878,7 +902,7 @@ mod tests {
                 "{client} should send the visitor id"
             );
         }
-        for client in ["ios", "android_vr", "tv"] {
+        for client in ["ios", "android", "android_vr", "tv"] {
             assert!(
                 !profile_for(client, &id).send_visitor_id,
                 "{client} should not send the visitor id"
