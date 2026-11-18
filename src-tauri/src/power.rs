@@ -92,5 +92,6 @@ pub async fn set_playback_state(
     video: bool,
 ) -> Result<(), String> {
     state.awake.set(playing, video);
+    state.video_open.store(playing, std::sync::atomic::Ordering::Relaxed);
     Ok(())
 }

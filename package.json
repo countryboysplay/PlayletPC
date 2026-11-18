@@ -1,6 +1,6 @@
 {
   "name": "playlet-desktop",
-  "version": "0.48.3",
+  "version": "0.3.0",
   "description": "Playlet for Windows - an ad-free, privacy-respecting YouTube client. Desktop port of the Roku app by iBicha.",
   "private": true,
   "type": "module",

@@ -51,6 +51,13 @@ It installs per-user, so it needs no administrator rights. It is **unsigned**, s
 SmartScreen will show "Windows protected your PC" on first run — choose *More info* →
 *Run anyway*. Signing requires a code-signing certificate.
 
+Installed copies update themselves from the latest GitHub release: Playlet checks shortly
+after it starts and then daily, downloads in the background, and asks before restarting,
+never while a video is open. To release, bump `version` in `package.json` and
+`src-tauri/Cargo.toml` (CI fails if they differ) and push a matching `v<version>` tag.
+CI signs the installer with the updater key from the repository secrets and publishes it
+with `latest.json`.
+
 ## Tests
 
 ```
