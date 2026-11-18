@@ -921,10 +921,16 @@ export function mapCaptions(json: Any): Caption[] {
   for (const t of tracks) {
     const url = typeof t?.baseUrl === 'string' ? t.baseUrl : ''
     if (!url) continue
+    // The player keys tracks by language: one per language, a human track over an auto-generated one.
+    if (t.kind === 'asr' && tracks.some((o) => o?.kind !== 'asr' && o?.languageCode === t.languageCode)) continue
+    if (out.some((c) => c.language_code === String(t.languageCode ?? ''))) continue
+    // timedtext answers in its own XML format unless asked for WebVTT.
+    const vtt = new URL(absoluteUrl(url), 'https://www.youtube.com')
+    vtt.searchParams.set('fmt', 'vtt')
     out.push({
       label: readText(t.name) || String(t.languageCode ?? ''),
       language_code: String(t.languageCode ?? ''),
-      url: absoluteUrl(url),
+      url: vtt.toString(),
     })
   }
   return out

@@ -172,6 +172,8 @@ export class PlayletPlayer {
   private textTracks: TextTrackOption[] = [];
   private blobUrls: string[] = [];
   private nativeTrackEls: HTMLTrackElement[] = [];
+  /** Languages fetched (or being fetched) for the current video. */
+  private loadedCaptions = new Set<string>();
 
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private lastTickTime = -1;
@@ -492,9 +494,13 @@ export class PlayletPlayer {
     return this.textTracks.slice();
   }
 
-  /** Pass null to turn captions off. */
+  /** Pass null to turn captions off. A caption language not loaded yet is fetched first. */
   async setTextTrack(id: string | null): Promise<void> {
     this.assertAlive();
+    // The latest pick wins over slower fetches, and recover() reloads with it.
+    if (this.currentOpts) this.currentOpts.captionLanguage = id;
+    const caption = this.currentVideo?.captions?.find((c) => c.languageCode === id);
+    if (caption && !this.loadedCaptions.has(caption.languageCode)) return this.loadCaptionTrack(caption);
     if (this.currentSource && this.currentSource.kind !== 'progressive' && this.shakaPlayer) {
       const sp = this.shakaPlayer;
       if (id == null) {
@@ -837,15 +843,22 @@ export class PlayletPlayer {
     await this.loadCaptionTrack(match, true);
   }
 
-  /** Fetch one caption track and attach it (blob URL: no second CORS surface). */
+  /** Fetch one caption track and attach it (blob URL: no second CORS surface). A track already loaded is just shown. */
   async loadCaptionTrack(caption: InvidiousCaption, show = true): Promise<void> {
     const opts = this.currentOpts;
     if (!opts) return;
+    if (show) opts.captionLanguage = caption.languageCode;
+    if (this.loadedCaptions.has(caption.languageCode)) {
+      if (show) await this.setTextTrack(caption.languageCode);
+      return;
+    }
+    this.loadedCaptions.add(caption.languageCode);
     const token = this.loadToken;
     let blobUrl: string;
     try {
       blobUrl = await fetchCaptionAsBlobUrl(opts.instance, caption, { retries: 1, signal: this.abort?.signal });
     } catch (e) {
+      this.loadedCaptions.delete(caption.languageCode);
       this.emitter.emit('warning', { error: toPlaybackError(e) });
       return;
     }
@@ -854,12 +867,15 @@ export class PlayletPlayer {
       return;
     }
     this.blobUrls.push(blobUrl);
+    // Another pick (or Off) may have come in while this one downloaded.
+    show = show && this.currentOpts?.captionLanguage === caption.languageCode;
 
     if (this.currentSource && this.currentSource.kind !== 'progressive' && this.shakaPlayer) {
       try {
         await this.shakaPlayer.addTextTrackAsync(blobUrl, caption.languageCode, 'subtitle', 'text/vtt', undefined, caption.label);
         if (show) await this.setTextTrack(caption.languageCode);
       } catch (e) {
+        this.loadedCaptions.delete(caption.languageCode);
         this.emitter.emit('warning', { error: toPlaybackError(e) });
       }
       return;
@@ -889,6 +905,7 @@ export class PlayletPlayer {
       }
     }
     this.blobUrls = [];
+    this.loadedCaptions.clear();
     this.textTracks = [];
   }
 

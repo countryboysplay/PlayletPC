@@ -154,6 +154,10 @@ class SettingsStore {
   get preferredQuality(): string {
     return this.get<string>('playback.preferred_quality') ?? 'auto'
   }
+  /** Last caption language picked in the player's CC menu; '' means off. Not in the Roku schema. */
+  get captionLanguage(): string {
+    return this.get<string>('playback.caption_language') ?? ''
+  }
   get disableAutoDubbed(): boolean {
     return this.get<boolean>('playback.disable_auto_dubbed')
   }

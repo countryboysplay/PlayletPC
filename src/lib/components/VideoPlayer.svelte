@@ -5,7 +5,8 @@
     SponsorBlockController,
     attachSponsorBlock,
     fetchSponsorSegments,
-    type QualityOption
+    type QualityOption,
+    type TextTrackOption
   } from '../player'
   import type { VideoDetails, SponsorBlockCategory } from '../api/types'
   import { categoryColor, categoryTitle } from '../api/sponsorblock'
@@ -50,6 +51,8 @@
   let skipNotice = $state<{ label: string; action: () => void; actionLabel: string } | null>(null)
   let noticeTimer: ReturnType<typeof setTimeout> | null = null
   let showQualityMenu = $state(false)
+  let captionTracks = $state<TextTrackOption[]>([])
+  let showCaptionMenu = $state(false)
 
   let hideTimer: ReturnType<typeof setTimeout> | null = null
   let progressTimer: ReturnType<typeof setInterval> | null = null
@@ -123,6 +126,7 @@
     player.on('pause', () => (playing = false))
     player.on('buffering', payload => (buffering = payload.buffering))
     player.on('qualitiesupdated', payload => (qualities = payload.qualities))
+    player.on('texttrackschanged', payload => (captionTracks = payload.tracks))
     player.on('ended', () => {
       playing = false
       onEnded?.()
@@ -172,7 +176,8 @@
       await player.load(playableVideo(), {
         instance: session.instance,
         startTime: startAt,
-        manifestUri: manifestObjectUrl
+        manifestUri: manifestObjectUrl,
+        captionLanguage: settings.captionLanguage || null
       })
       qualities = player.getQualities()
       duration = video.lengthSeconds
@@ -317,6 +322,12 @@
     activeQuality = id
     showQualityMenu = false
     await player?.setQuality(id === 'auto' ? 'auto' : id)
+  }
+
+  async function pickCaption(language: string | null) {
+    showCaptionMenu = false
+    void settings.set('playback.caption_language', language ?? '')
+    await player?.setTextTrack(language)
   }
 
   function toggleFullscreen() {
@@ -511,9 +522,31 @@
 
       <div class="spacer"></div>
 
+      {#if captionTracks.length > 0}
+        <div class="quality">
+          <button
+            class="text-btn"
+            class:on={captionTracks.some(t => t.active)}
+            onclick={() => ((showCaptionMenu = !showCaptionMenu), (showQualityMenu = false))}
+            aria-expanded={showCaptionMenu}
+            aria-label="Captions">CC</button
+          >
+          {#if showCaptionMenu}
+            <ul class="menu">
+              <li><button onclick={() => pickCaption(null)} class:on={!captionTracks.some(t => t.active)}>Off</button></li>
+              {#each captionTracks as track (track.id)}
+                <li>
+                  <button onclick={() => pickCaption(track.language)} class:on={track.active}>{track.label}</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      {/if}
+
       {#if qualities.length > 0}
         <div class="quality">
-          <button class="text-btn" onclick={() => (showQualityMenu = !showQualityMenu)} aria-expanded={showQualityMenu}>
+          <button class="text-btn" onclick={() => ((showQualityMenu = !showQualityMenu), (showCaptionMenu = false))} aria-expanded={showQualityMenu}>
             {activeQuality === 'auto' ? 'Auto' : activeQuality}
           </button>
           {#if showQualityMenu}
@@ -769,6 +802,10 @@
     font-size: 12px;
     font-weight: 600;
     color: #fff;
+  }
+
+  .text-btn.on {
+    color: var(--accent);
   }
 
   .text-btn:hover {
