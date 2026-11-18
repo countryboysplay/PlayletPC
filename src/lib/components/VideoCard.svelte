@@ -3,6 +3,8 @@
   import { formatDuration, formatViews, formatRelativeTime, pickThumbnail } from '../format'
   import { router } from '../router.svelte'
   import { library } from '../stores/library.svelte'
+  import { queue } from '../stores/queue.svelte'
+  import { settings } from '../stores/settings.svelte'
 
   interface Props {
     video: VideoSummary
@@ -28,6 +30,19 @@
 
   function open() {
     router.go('watch', { v: video.videoId })
+  }
+
+  /** Confirms the click when "Queue notifications" is on (Settings, Misc). */
+  let queued = $state<string | null>(null)
+  let queuedTimer: ReturnType<typeof setTimeout> | undefined
+
+  function enqueue(next: boolean) {
+    if (next) queue.addNext(video)
+    else queue.add(video)
+    if (!settings.get<boolean>('misc.queue_notifications')) return
+    queued = next ? 'Plays next' : 'Added to queue'
+    clearTimeout(queuedTimer)
+    queuedTimer = setTimeout(() => (queued = null), 1500)
   }
 
   function openChannel(event: MouseEvent) {
@@ -57,6 +72,15 @@
     </div>
   </button>
 
+  <div class="queue-actions" class:shown={queued}>
+    {#if queued}
+      <span role="status">{queued}</span>
+    {:else}
+      <button onclick={() => enqueue(true)}>Play next</button>
+      <button onclick={() => enqueue(false)}>Add to queue</button>
+    {/if}
+  </div>
+
   <div class="body">
     <h3 class="title clamp-2" title={video.title}>
       <button class="hit-text" onclick={open}>{video.title}</button>
@@ -72,6 +96,7 @@
 
 <style>
   .card {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
@@ -149,6 +174,38 @@
     inset: 0 auto 0 0;
     width: var(--pct);
     background: var(--accent);
+  }
+
+  /* Over the thumbnail's top corner, shown on hover or keyboard focus. */
+  .queue-actions {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 120ms var(--ease);
+  }
+
+  .card:hover .queue-actions,
+  .queue-actions:focus-within,
+  .queue-actions.shown {
+    opacity: 1;
+  }
+
+  .queue-actions button,
+  .queue-actions span {
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.82);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .queue-actions button:hover {
+    background: rgba(0, 0, 0, 0.95);
+    color: var(--accent);
   }
 
   .body {

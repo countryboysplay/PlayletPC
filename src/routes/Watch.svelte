@@ -4,6 +4,7 @@
   import { library } from '../lib/stores/library.svelte'
   import { settings } from '../lib/stores/settings.svelte'
   import { router } from '../lib/router.svelte'
+  import { queue } from '../lib/stores/queue.svelte'
   import { shell } from '../lib/shell'
   import VideoPlayer from '../lib/components/VideoPlayer.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
@@ -64,12 +65,18 @@
 
   /** Explicit "next" (media key, flyout); autoplay at the end goes through playNext. */
   function skipNext() {
-    const next = recommendations[0]
+    const next = queue.next(videoId, recommendations[0])
     if (next) router.go('watch', { v: next.videoId })
   }
 
+  function skipPrevious() {
+    const previous = queue.previous()
+    if (previous) router.go('watch', { v: previous })
+  }
+
+  /** At the end of a video. Queued videos play even with autoplay off: queueing asked for them. */
   function playNext() {
-    if (settings.autoplay) skipNext()
+    if (settings.autoplay || queue.items.length) skipNext()
   }
 
   function toggleSubscribe() {
@@ -101,7 +108,14 @@
       </div>
     {:else if video}
       {#key video.videoId}
-        <VideoPlayer {video} {startAt} onProgress={recordProgress} onEnded={playNext} onNext={recommendations.length ? skipNext : undefined} />
+        <VideoPlayer
+          {video}
+          {startAt}
+          onProgress={recordProgress}
+          onEnded={playNext}
+          onNext={queue.items.length || recommendations.length ? skipNext : undefined}
+          onPrevious={queue.hasPrevious ? skipPrevious : undefined}
+        />
       {/key}
 
       {#if reducedQuality}
@@ -156,6 +170,20 @@
   </div>
 
   <aside class="side">
+    {#if queue.items.length > 0}
+      <div class="queue-head">
+        <h2>Queue</h2>
+        <button class="more" onclick={() => queue.clear()}>Clear</button>
+      </div>
+      <ol class="queue">
+        {#each queue.items as item, i}
+          <li>
+            <button class="queue-title" onclick={() => (queue.remove(i), router.go('watch', { v: item.videoId }))}>{item.title}</button>
+            <button class="queue-remove" onclick={() => queue.remove(i)} aria-label={'Remove ' + item.title + ' from queue'}>×</button>
+          </li>
+        {/each}
+      </ol>
+    {/if}
     {#if recommendations.length > 0}
       <h2>Up next</h2>
       <div class="rail">
@@ -336,6 +364,52 @@
     flex-direction: column;
     gap: var(--space-4);
     min-width: 0;
+  }
+
+  .queue-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .queue {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .queue li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 4px 8px;
+    border-radius: var(--r-control);
+    background: var(--chip);
+  }
+
+  .queue-title {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-size: 13px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .queue-remove {
+    color: var(--ink-dim);
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 4px;
+  }
+
+  .queue-remove:hover,
+  .queue-title:hover {
+    color: var(--ink);
   }
 
   .rail {

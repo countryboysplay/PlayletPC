@@ -22,11 +22,12 @@
     startAt?: number
     onProgress?: (seconds: number) => void
     onEnded?: () => void
-    /** The Windows media flyout / hardware Next key. */
+    /** The Windows media flyout / hardware Next and Previous keys. */
     onNext?: () => void
+    onPrevious?: () => void
   }
 
-  let { video, startAt = 0, onProgress, onEnded, onNext }: Props = $props()
+  let { video, startAt = 0, onProgress, onEnded, onNext, onPrevious }: Props = $props()
 
   let videoEl: HTMLVideoElement | undefined = $state()
   let container: HTMLDivElement | undefined = $state()
@@ -229,7 +230,8 @@
     seekto: d => d.seekTime != null && player?.seek(d.seekTime),
     seekbackward: d => nudge(-(d.seekOffset ?? 10)),
     seekforward: d => nudge(d.seekOffset ?? 10),
-    nexttrack: onNext ? () => onNext?.() : null
+    nexttrack: onNext ? () => onNext?.() : null,
+    previoustrack: onPrevious ? () => onPrevious?.() : null
   })
 
   function attachMediaSession() {
