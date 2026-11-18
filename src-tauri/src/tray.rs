@@ -2,7 +2,7 @@
 //!
 //! RECOMMENDATION for v1: build the tray icon, but keep "close to tray" OFF by
 //! default. A media app that vanishes into the tray when the user clicks X --
-//! and keeps holding the sleep blocker and the media keys -- reads as malware.
+//! and keeps holding the sleep blocker -- reads as malware.
 //! Windows 11 also hides new tray icons in the overflow chevron by default, so a
 //! user who does not know the app is still running has no visible way to find it.
 //!

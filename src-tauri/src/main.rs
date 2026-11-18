@@ -8,7 +8,6 @@ mod media;
 mod oauth;
 mod net;
 mod power;
-mod shortcuts;
 mod tray;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,7 +26,6 @@ pub struct AppState {
     pub stream_urls: media::StreamUrlCache,
     pub awake: power::KeepAwake,
     pub close_to_tray: AtomicBool,
-    pub media_keys: AtomicBool,
 }
 
 fn main() {
@@ -70,12 +68,8 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init());
 
-    #[cfg(desktop)]
-    {
-        // No updater yet: shipping one needs a signing key and a release endpoint,
-        // neither of which exists for this build. See docs/PACKAGING.md to add it.
-        builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
-    }
+    // Media keys need no plugin: the webview's Media Session (VideoPlayer.svelte) is
+    // routed by Windows to whichever app is the active media session.
 
     builder
         // Media is streamed through this process rather than fetched by the webview:
@@ -88,7 +82,6 @@ fn main() {
             stream_urls: media::StreamUrlCache::new(),
             awake: power::KeepAwake::spawn(),
             close_to_tray: AtomicBool::new(false),
-            media_keys: AtomicBool::new(false),
         })
         .invoke_handler(tauri::generate_handler![
             net::api_fetch,
@@ -102,7 +95,6 @@ fn main() {
             innertube::yt_innertube,
             innertube::yt_refresh_identity,
             power::set_playback_state,
-            shortcuts::set_media_keys_enabled,
             tray::set_close_to_tray,
             app_ready,
         ])
@@ -121,12 +113,6 @@ fn main() {
                     state
                         .close_to_tray
                         .store(v.as_bool().unwrap_or(false), Ordering::Relaxed);
-                }
-                if let Some(v) = store.get("mediaKeys") {
-                    if v.as_bool().unwrap_or(true) {
-                        let _ = shortcuts::register(&handle);
-                        state.media_keys.store(true, Ordering::Relaxed);
-                    }
                 }
             }
 

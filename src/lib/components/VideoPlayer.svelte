@@ -13,7 +13,7 @@
   import { settings } from '../stores/settings.svelte'
   import { session } from '../stores/session.svelte'
   import { shell } from '../shell'
-  import { formatDuration } from '../format'
+  import { formatDuration, pickThumbnail } from '../format'
 
   interface Props {
     video: VideoDetails
@@ -21,9 +21,11 @@
     startAt?: number
     onProgress?: (seconds: number) => void
     onEnded?: () => void
+    /** The Windows media flyout / hardware Next key. */
+    onNext?: () => void
   }
 
-  let { video, startAt = 0, onProgress, onEnded }: Props = $props()
+  let { video, startAt = 0, onProgress, onEnded, onNext }: Props = $props()
 
   let videoEl: HTMLVideoElement | undefined = $state()
   let container: HTMLDivElement | undefined = $state()
@@ -105,6 +107,14 @@
     player.on('timeupdate', payload => {
       currentTime = payload.currentTime
       if (payload.duration > 0) duration = payload.duration
+      // Drives the timeline in the Windows media flyout. Throws if position > duration.
+      if (duration > 0) {
+        try {
+          navigator.mediaSession.setPositionState({ duration, position: Math.min(currentTime, duration) })
+        } catch {
+          /* a transient position past the end; the next tick corrects it */
+        }
+      }
     })
     player.on('play', () => {
       playing = true
@@ -133,6 +143,8 @@
         .filter(Boolean)
         .join(' · ')
     })
+
+    attachMediaSession()
 
     if (settings.sponsorBlockEnabled) {
       sponsorBlock = new SponsorBlockController({ categories: sponsorCategoryConfig() })
@@ -193,6 +205,42 @@
       await player.recover({ forceProxy: !session.isDirect, video: fresh ? playableVideo(fresh) : undefined })
     } catch (err) {
       loadError = err instanceof Error ? err.message : 'Could not start this video.'
+    }
+  }
+
+  /**
+   * Windows media integration. WebView2 forwards the Media Session API to the system
+   * media controls, so this gives the flyout its title and artwork, and routes the
+   * hardware media keys here only while Playlet is the active media app - instead of
+   * grabbing them system-wide from Spotify and every browser tab.
+   */
+  // One table for setting and clearing, so an added action can never outlive the player.
+  // A null handler tells Windows to grey that button out.
+  const mediaHandlers = (): Partial<Record<MediaSessionAction, MediaSessionActionHandler | null>> => ({
+    play: () => void player?.play(),
+    pause: () => player?.pause(),
+    seekto: d => d.seekTime != null && player?.seek(d.seekTime),
+    seekbackward: d => nudge(-(d.seekOffset ?? 10)),
+    seekforward: d => nudge(d.seekOffset ?? 10),
+    nexttrack: onNext ? () => onNext?.() : null
+  })
+
+  function attachMediaSession() {
+    const artwork = pickThumbnail(video.videoThumbnails, 480)
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: video.title,
+      artist: video.author,
+      artwork: artwork ? [{ src: artwork }] : []
+    })
+    for (const [action, handler] of Object.entries(mediaHandlers())) {
+      navigator.mediaSession.setActionHandler(action as MediaSessionAction, handler)
+    }
+  }
+
+  function detachMediaSession() {
+    navigator.mediaSession.metadata = null
+    for (const action of Object.keys(mediaHandlers())) {
+      navigator.mediaSession.setActionHandler(action as MediaSessionAction, null)
     }
   }
 
@@ -360,6 +408,7 @@
       }
       manifestObjectUrl = null
       detachSponsorBlock?.()
+      detachMediaSession()
       if (noticeTimer) clearTimeout(noticeTimer)
       void player?.destroy()
       player = null
