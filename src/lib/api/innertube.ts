@@ -31,6 +31,8 @@ import {
   mapPlaylist,
   mapRecommendations,
   mapChapters,
+  commentsToken,
+  mapComments,
   mapSearchResults,
   mapPlayerResponse,
   PlayabilityError
@@ -477,11 +479,10 @@ export class InnertubeClient implements Backend {
     videoId: string,
     opts: { continuation?: string; sortBy?: 'top' | 'new'; signal?: AbortSignal } = {}
   ): Promise<CommentsResponse> {
-    void opts
-    // Comments need a continuation token dug out of /next, then a second browse call.
-    // Not wired up yet; the UI has no comments view, so return an empty set rather
-    // than pretending to fail.
-    return { videoId, comments: [] }
+    // The first page needs a token from the video's own /next; sortBy is not wired up.
+    const continuation = opts.continuation ?? commentsToken(await this.call('next', { videoId }))
+    if (!continuation) return { videoId, comments: [] }
+    return mapComments(await this.call('next', { continuation }), videoId)
   }
 
   // ---- Channels ----------------------------------------------------------

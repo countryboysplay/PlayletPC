@@ -23,6 +23,8 @@ import {
   mapPlaylist,
   mapRecommendations,
   mapChapters,
+  commentsToken,
+  mapComments,
   mapSearchResults,
   parseCompactNumber,
   parseDuration,
@@ -632,6 +634,21 @@ eq(chapters[11], { title: 'Nature of war', start: 10013 }, 'last chapter')
 ok(chapters.every((c, i) => i === 0 || c.start > chapters[i - 1].start), 'chapters are in order')
 eq(mapChapters(nextJson), [], 'a video without chapters (heatmap only) -> []')
 eq(mapChapters({}), [], 'mapChapters({}) -> []')
+
+section('comments.web.json  (dQw4w9WgXcQ, first page trimmed to 3 threads, 2026-11-18)')
+
+ok(typeof commentsToken(nextJson) === 'string', 'next.web.json -> comments token')
+eq(commentsToken({}), undefined, 'commentsToken({}) -> undefined')
+const comments = mapComments(load('comments.web.json'), 'dQw4w9WgXcQ')
+eq(comments.commentCount, 2462455, 'count from the header')
+eq(comments.comments.length, 3, '3 comments')
+ok(typeof comments.continuation === 'string', 'has a Load more token')
+eq(comments.comments[0].author, '@LK-ht7qz', 'author from the entity payload')
+eq(comments.comments[0].likeCount, 223000, '"223K" likes')
+eq(comments.comments[0].isEdited, false, 'not edited')
+eq(comments.comments[1].isEdited, true, '"(edited)" -> isEdited')
+ok(comments.comments.every(c => c.content && isHttps(c.authorThumbnails[0]?.url)), 'every comment has text and an avatar')
+eq(mapComments({}, 'x'), { videoId: 'x', comments: [] }, 'mapComments({}) -> empty')
 
 /* =================================================================== */
 console.log(`\n================================`)

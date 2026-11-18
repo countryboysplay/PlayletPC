@@ -8,6 +8,7 @@
   import { shell } from '../lib/shell'
   import VideoPlayer from '../lib/components/VideoPlayer.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
+  import Comments from '../lib/components/Comments.svelte'
   import { formatCount, formatViews, formatRelativeTime, pickThumbnail } from '../lib/format'
 
   interface Props {
@@ -166,6 +167,10 @@
           </button>
         {/if}
       {/if}
+
+      {#key video.videoId}
+        <Comments videoId={video.videoId} />
+      {/key}
     {/if}
   </div>
 
