@@ -15,7 +15,7 @@ defaults — but runs natively on Windows as a Tauri app with a Svelte front end
 - **Channels** — videos, shorts and live tabs, with local subscriptions
 - **Playlists** — browse and play through
 - **Watch** — adaptive DASH playback at up to 2160p, with quality selection, captions
-  and keyboard control. Whole videos, not the first minute; see `docs/STATE-AND-NEXT.md`
+  and keyboard control. Whole videos, not the first minute
 - **SponsorBlock** — per-category skip / ask / mark-only, using the privacy-preserving
   hash-prefix API so the server never learns which video you are watching
 - **History** — resume where you left off, stored locally
@@ -42,15 +42,7 @@ The installer lands in
 
 It installs per-user, so it needs no administrator rights. It is **unsigned**, so
 SmartScreen will show "Windows protected your PC" on first run — choose *More info* →
-*Run anyway*. Signing requires a code-signing certificate; see `docs/PACKAGING.md`.
-
-## Start here
-
-**`docs/STATE-AND-NEXT.md`** is the handoff document: current state, the one thing that is
-broken, every hypothesis already disproved (so they are not retried), and the plan for the
-committed next step — building the SABR/UMP playback path.
-
-`docs/INNERTUBE.md` holds the measurements behind the backend's design decisions.
+*Run anyway*. Signing requires a code-signing certificate.
 
 ## Tests
 
@@ -100,8 +92,7 @@ Playlet has two, switchable in Settings:
 responses onto Invidious shapes, so no UI code knows the difference. No third-party
 server, nothing to go down. This mirrors what the upstream Roku app does by default.
 
-Client selection was measured against the live API, not assumed — see
-`docs/INNERTUBE.md` for the full table. The short version: the **IOS** client returns
+Client selection was measured against the live API, not assumed. The short version: the **IOS** client returns
 direct, *unciphered* stream URLs with no `n` parameter and no PoToken requirement, which
 is why this app ships no JavaScript engine, no BotGuard machinery, and no external
 decipher service, and still fits in one ~4 MB installer. Playback walks a client ladder

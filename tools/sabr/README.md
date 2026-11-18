@@ -2,7 +2,6 @@
 
 Standalone Node scripts used to implement and measure YouTube's SABR playback path.
 Nothing here is shipped in the app — these exist to produce evidence and fixtures.
-Findings live in [`../../docs/STATE-AND-NEXT.md`](../../docs/STATE-AND-NEXT.md) §6.
 
 Requires only Node 24+ and network access. Run from this directory.
 

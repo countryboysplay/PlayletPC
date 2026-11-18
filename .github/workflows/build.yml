@@ -70,5 +70,4 @@ jobs:
             Per-user install to `%LOCALAPPDATA%\Playlet`, no admin required.
 
             Full-length playback at up to 2160p, browsing, search, channels,
-            playlists, subscriptions and SponsorBlock all work. See
-            [docs/STATE-AND-NEXT.md](docs/STATE-AND-NEXT.md) for current state.
+            playlists, subscriptions and SponsorBlock all work.
