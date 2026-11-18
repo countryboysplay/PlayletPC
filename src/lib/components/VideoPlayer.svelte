@@ -444,7 +444,7 @@
   element that carries colour, because that is where SponsorBlock's data lives.
 -->
 <div
-  class="stage"
+  class="stage zone-graphite"
   bind:this={container}
   onmousemove={showControls}
   onmouseleave={() => playing && (controlsVisible = false)}
@@ -477,13 +477,13 @@
   {/if}
 
   {#if skipNotice}
-    <div class="skip-notice">
+    <div class="skip-notice frost">
       <span>{skipNotice.label}</span>
       <button onclick={skipNotice.action}>{skipNotice.actionLabel}</button>
     </div>
   {/if}
 
-  <div class="controls" class:hidden={!controlsVisible && playing}>
+  <div class="controls frost" class:hidden={!controlsVisible && playing}>
     <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
     <div class="scrub" onclick={scrub}>
       <div class="track">
@@ -567,11 +567,10 @@
       {#if qualities.length > 0}
         <div class="quality">
           <button class="text-btn" onclick={() => ((showQualityMenu = !showQualityMenu), (showCaptionMenu = false))} aria-expanded={showQualityMenu}>
-            {activeQuality === 'auto' ? 'Auto' : activeQuality}
+            {activeQuality === 'auto' ? 'Auto' : (qualities.find(q => q.id === activeQuality)?.label ?? 'Auto')}
           </button>
           {#if showQualityMenu}
             <ul class="menu">
-              <li><button onclick={() => pickQuality('auto')} class:on={activeQuality === 'auto'}>Auto</button></li>
               {#each qualities as quality (quality.id)}
                 <li>
                   <button onclick={() => pickQuality(quality.id)} class:on={activeQuality === quality.id}>
@@ -632,7 +631,7 @@
     height: 42px;
     margin: -21px 0 0 -21px;
     border: 3px solid rgba(255, 255, 255, 0.22);
-    border-top-color: var(--accent);
+    border-top-color: var(--gold);
     border-radius: 50%;
     animation: spin 700ms linear infinite;
   }
@@ -675,11 +674,13 @@
     margin-top: var(--space-2);
   }
 
+  /* Over the video there is no gold to raise from, so no neumorphic shadow here. */
   .primary,
   .ghost {
     padding: 8px 16px;
-    border-radius: var(--r-control);
+    border-radius: var(--r-pill);
     font-weight: 600;
+    box-shadow: none;
   }
 
   .primary {
@@ -699,29 +700,40 @@
     align-items: center;
     gap: var(--space-3);
     padding: 8px 14px;
-    border-radius: var(--r-control);
-    background: rgba(0, 0, 0, 0.82);
+    border-radius: var(--r-pill);
     font-size: 13px;
   }
 
   .skip-notice button {
-    color: var(--accent);
+    color: var(--gold);
     font-weight: 600;
   }
 
+  /* A frosted-glass dock floating over the video (Vengeance UI's Music Player). It is
+     the one place glass belongs: the picture behind it changes every frame, so
+     neumorphic shadows would have no surface to sit on. The tint stays strong enough
+     for gold text to read over a white frame. */
   .controls {
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding: var(--space-6) var(--space-4) var(--space-3);
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
-    transition: opacity 180ms var(--ease);
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: var(--space-3);
+    padding: 4px var(--space-3) 6px;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: opacity 180ms var(--ease), transform 260ms var(--spring);
   }
 
   .controls.hidden {
     opacity: 0;
+    transform: translateY(8px);
     pointer-events: none;
+  }
+
+  .stage:fullscreen .controls {
+    left: var(--space-5);
+    right: var(--space-5);
+    bottom: var(--space-5);
   }
 
   .scrub {
@@ -733,7 +745,7 @@
     position: relative;
     height: 5px;
     border-radius: var(--r-pill);
-    background: rgba(255, 255, 255, 0.26);
+    background: rgba(217, 162, 58, 0.28);
   }
 
   .scrub:hover .track {
@@ -755,6 +767,7 @@
     bottom: 0;
     background: var(--accent);
     border-radius: var(--r-pill);
+    box-shadow: 0 0 10px rgba(36, 72, 255, 0.85);
   }
 
   .knob {
@@ -764,8 +777,8 @@
     height: 12px;
     margin-left: -6px;
     border-radius: 50%;
-    background: var(--accent);
-    transform: translateY(-50%) scale(0);
+    background: var(--gold);
+    transform: translateY(-50%) scale(0.6);
     transition: transform 120ms var(--ease);
   }
 
@@ -785,8 +798,13 @@
     height: 32px;
     display: grid;
     place-items: center;
-    border-radius: var(--r-control);
-    color: #fff;
+    border-radius: var(--r-pill);
+    color: var(--ink);
+    transition: transform 160ms var(--spring);
+  }
+
+  .icon:active {
+    transform: scale(0.9);
   }
 
   .icon:hover {
@@ -803,7 +821,7 @@
     width: 0;
     opacity: 0;
     transition: width 160ms var(--ease), opacity 160ms var(--ease);
-    accent-color: var(--accent);
+    accent-color: var(--gold);
   }
 
   .volume:hover input,
@@ -814,7 +832,7 @@
 
   .time {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.82);
+    color: var(--ink);
   }
 
   /* A gap in the bar at each chapter start. */
@@ -833,7 +851,7 @@
     white-space: nowrap;
     text-overflow: ellipsis;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.82);
+    color: var(--ink-dim);
   }
 
   .spacer {
@@ -846,14 +864,15 @@
 
   .text-btn {
     padding: 4px 10px;
-    border-radius: var(--r-control);
+    border-radius: var(--r-pill);
     font-size: 12px;
     font-weight: 600;
-    color: #fff;
+    color: var(--ink-dim);
   }
 
   .text-btn.on {
-    color: var(--accent);
+    color: var(--ink);
+    background: rgba(217, 162, 58, 0.2);
   }
 
   .text-btn:hover {
@@ -870,27 +889,30 @@
     min-width: 116px;
     max-height: 260px;
     overflow-y: auto;
-    background: rgba(20, 20, 20, 0.96);
-    border: 1px solid var(--edge);
-    border-radius: var(--r-card);
+    /* Inside the dock, which already blurs, so a stronger tint stands in for the blur. */
+    background: rgba(30, 31, 36, 0.9);
+    border: 1px solid var(--glass-edge);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   }
 
   .menu button {
     display: block;
     width: 100%;
     text-align: left;
-    padding: 5px 10px;
-    border-radius: 4px;
+    padding: 6px 10px;
+    border-radius: 10px;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.78);
+    color: var(--ink-dim);
   }
 
   .menu button:hover {
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--ink);
   }
 
   .menu button.on {
-    color: var(--accent);
+    color: var(--ink);
+    background: rgba(217, 162, 58, 0.2);
   }
 </style>

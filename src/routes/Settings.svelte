@@ -430,7 +430,7 @@
     font-size: 34px;
     font-weight: 700;
     letter-spacing: 0.12em;
-    color: var(--accent);
+    color: var(--ink);
     padding: var(--space-2) 0;
   }
 
@@ -604,12 +604,13 @@
     color: var(--ink-faint);
   }
 
+  /* Both well above 4.5:1 on graphite. */
   .badge.good {
     color: #6bd67b;
   }
 
   .badge.bad {
-    color: var(--accent);
+    color: #ff8a7a;
   }
 
   .pref {

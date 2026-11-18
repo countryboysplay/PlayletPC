@@ -106,7 +106,11 @@
     gap: var(--space-4);
     overflow-x: auto;
     scroll-snap-type: x proximity;
-    padding-bottom: var(--space-2);
+    /* Room for the hover plate, which a scroller would otherwise clip; the negative
+       margin keeps the first card aligned with the shelf title. */
+    padding: 12px;
+    margin: -12px -12px -4px;
+    scroll-padding-left: 12px;
     scrollbar-width: none;
   }
 

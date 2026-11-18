@@ -262,11 +262,14 @@
     padding-right: var(--space-6);
   }
 
+  /* Same room for the hover plate as Shelf's track. */
   .resume-track {
     display: flex;
     gap: var(--space-4);
     overflow-x: auto;
-    padding-bottom: var(--space-2);
+    padding: 12px;
+    margin: -12px -12px -4px;
+    scroll-padding-left: 12px;
     scrollbar-width: none;
   }
 

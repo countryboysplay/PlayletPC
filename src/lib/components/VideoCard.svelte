@@ -97,6 +97,9 @@
 <style>
   .card {
     position: relative;
+    isolation: isolate;
+    /* Never stretch to the row: the hover plate should hug the card's own content. */
+    align-self: start;
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
@@ -104,21 +107,48 @@
     flex: 0 0 auto;
   }
 
+  /* Highlight: a raised plate rises behind the hovered card. */
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    z-index: -1;
+    border-radius: calc(var(--r-card) + 8px);
+    background: var(--ground);
+    box-shadow: var(--raise);
+    opacity: 0;
+    transform: scale(0.97);
+    transition: opacity 180ms var(--ease), transform 260ms var(--spring);
+  }
+
+  .card:hover::before,
+  .card:focus-within::before {
+    opacity: 1;
+    transform: none;
+  }
+
   .card.grid {
-    width: auto;
+    width: 100%;
     flex: 1 1 auto;
   }
 
+  /* The thumbnail sits in a pressed-in tray. */
   .hit {
     display: block;
     width: 100%;
-    border-radius: var(--r-card);
+    padding: 4px;
+    border-radius: calc(var(--r-card) + 4px);
+    box-shadow: var(--press);
   }
 
   .thumb {
     position: relative;
     aspect-ratio: 16 / 9;
     border-radius: var(--r-card);
+    /* A thin cobalt ring sets each tile off from the gold. Decorative, so the 2.7:1
+       contrast is fine; kept thin so cobalt stays near its 10% share. */
+    box-shadow: 0 0 0 2px var(--accent);
+    transition: box-shadow 220ms var(--ease);
     overflow: hidden;
     background: var(--chip);
   }
@@ -129,6 +159,12 @@
     object-fit: cover;
     display: block;
     transition: transform 220ms var(--ease);
+  }
+
+  /* Cobalt as light: the ring glows on the tile you point at. */
+  .card:hover .thumb,
+  .card:focus-within .thumb {
+    box-shadow: 0 0 0 2px var(--accent), 0 0 18px 3px rgba(36, 72, 255, 0.55);
   }
 
   .card:hover .thumb img {
@@ -148,6 +184,7 @@
     padding: 1px 5px;
     border-radius: 4px;
     background: rgba(0, 0, 0, 0.82);
+    color: #fff;
     font-size: 12px;
     font-weight: 600;
     line-height: 1.4;
@@ -205,7 +242,7 @@
 
   .queue-actions button:hover {
     background: rgba(0, 0, 0, 0.95);
-    color: var(--accent);
+    color: var(--gold);
   }
 
   .body {
@@ -215,17 +252,25 @@
     min-width: 0;
   }
 
+  /* Every card is the same size: the title always takes two lines' room, and the
+     channel and stats stay on one line each. */
   .title {
     font-size: 14px;
     font-weight: 600;
     line-height: 1.35;
+    min-height: calc(2 * 1.35em);
     margin: 0;
   }
 
+  /* The clamp lives here, on the text itself: on the heading it cannot reach the button. */
   .hit-text {
     text-align: left;
-    display: block;
     width: 100%;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
 
   .author {
@@ -247,5 +292,8 @@
     margin: 0;
     color: var(--ink-faint);
     font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

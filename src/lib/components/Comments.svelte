@@ -83,12 +83,23 @@
     margin-top: var(--space-2);
   }
 
+  /* Same fold header as the Watch page's Description. */
   .head {
     align-self: flex-start;
     display: flex;
+    align-items: center;
     gap: var(--space-2);
-    font-size: 15px;
-    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: var(--r-pill);
+    background: var(--ground);
+    box-shadow: var(--raise-sm);
+    font-size: 14px;
+    font-weight: 700;
+    transition: box-shadow 160ms var(--ease);
+  }
+
+  .head[aria-expanded='true'] {
+    box-shadow: var(--press);
   }
 
   .comment {

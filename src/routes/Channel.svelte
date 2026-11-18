@@ -222,9 +222,21 @@
     background: var(--chip-hover);
   }
 
-  .subscribe.on {
-    background: var(--accent-wash);
-    color: var(--accent);
+  /* Subscribe is the screen's one primary action; once subscribed it sits pressed in. */
+  .subscribe {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .subscribe:hover {
+    background: var(--accent-dim);
+  }
+
+  .subscribe.on,
+  .subscribe.on:hover {
+    background: var(--chip);
+    color: var(--ink);
+    box-shadow: var(--press);
   }
 
   .description {
@@ -257,7 +269,7 @@
 
   .tab.on {
     color: var(--ink);
-    border-bottom-color: var(--accent);
+    border-bottom-color: var(--ink);
   }
 
   .grid {

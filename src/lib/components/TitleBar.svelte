@@ -48,7 +48,7 @@
   })
 </script>
 
-<header class="titlebar" data-tauri-drag-region>
+<header class="titlebar zone-graphite" data-tauri-drag-region>
   <div class="left">
     <button class="back" onclick={() => router.back()} disabled={!router.canGoBack} aria-label="Back">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -143,7 +143,8 @@
     gap: var(--space-2);
     height: 28px;
     padding: 0 var(--space-3);
-    background: var(--chip);
+    background: var(--ground);
+    box-shadow: var(--press);
     border: 1px solid transparent;
     border-radius: var(--r-pill);
     /* The search field is interactive, so it must opt out of the window drag region. */
@@ -151,8 +152,7 @@
   }
 
   .search:focus-within {
-    border-color: var(--edge);
-    background: var(--chip-hi);
+    border-color: var(--ink-dim);
   }
 
   .glass {

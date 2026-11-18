@@ -62,7 +62,7 @@ with `latest.json`.
 ## Tests
 
 ```
-npm test          # 334 assertions against captured YouTube responses (offline)
+npm test          # offline assertions against captured YouTube responses
 npm run test:live # 18 assertions against YouTube right now (needs network)
 npm run check     # typecheck the app
 ```

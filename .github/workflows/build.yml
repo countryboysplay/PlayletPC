@@ -51,7 +51,7 @@ jobs:
 
       # Offline fixture assertions only. `npm run test:live` hits YouTube and would
       # make CI fail for reasons that have nothing to do with the commit.
-      - name: Test (334 offline assertions)
+      - name: Test (offline assertions)
         run: npm test
 
       - name: Test (Rust)
