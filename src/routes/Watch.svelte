@@ -62,10 +62,14 @@
     )
   }
 
-  function playNext() {
-    if (!settings.autoplay) return
+  /** Explicit "next" (media key, flyout); autoplay at the end goes through playNext. */
+  function skipNext() {
     const next = recommendations[0]
     if (next) router.go('watch', { v: next.videoId })
+  }
+
+  function playNext() {
+    if (settings.autoplay) skipNext()
   }
 
   function toggleSubscribe() {
@@ -97,7 +101,7 @@
       </div>
     {:else if video}
       {#key video.videoId}
-        <VideoPlayer {video} {startAt} onProgress={recordProgress} onEnded={playNext} />
+        <VideoPlayer {video} {startAt} onProgress={recordProgress} onEnded={playNext} onNext={recommendations.length ? skipNext : undefined} />
       {/key}
 
       {#if reducedQuality}

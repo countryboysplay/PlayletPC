@@ -16,6 +16,9 @@ defaults — but runs natively on Windows as a Tauri app with a Svelte front end
 - **Playlists** — browse and play through
 - **Watch** — adaptive DASH playback at up to 2160p, with quality selection, captions
   and keyboard control. Whole videos, not the first minute
+- **Windows media controls** — title and artwork in the media flyout and on the lock
+  screen, and the keyboard's Play/Pause and Next keys work while Playlet is the active
+  media app
 - **SponsorBlock** — per-category skip / ask / mark-only, using the privacy-preserving
   hash-prefix API so the server never learns which video you are watching
 - **History** — resume where you left off, stored locally
