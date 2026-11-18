@@ -740,6 +740,7 @@ function mapFeedItem(item: Any, ctx: ItemCtx = {}, depth = 0): SearchResult[] {
         case 'compactVideoRenderer':
         case 'gridVideoRenderer':
         case 'playlistVideoRenderer':
+        case 'playlistPanelVideoRenderer':
         case 'videoWithContextRenderer':
         case 'movieRenderer': {
           const v = mapVideoRenderer(node, ctx)
@@ -1410,6 +1411,28 @@ export function mapPlaylist(json: Any, ctx: ItemCtx = {}): PlaylistDetails {
     isListed: micro.noindex !== true,
   }
   return out
+}
+
+/**
+ * /youtubei/v1/next playlistId=RD<...> -> PlaylistDetails.
+ * Mixes (RD ids) are generated per viewer and cannot be browsed as VL<id>; the watch
+ * page's playlist panel is the only source. It holds the first batch (about 25) only.
+ */
+export function mapMixPlaylist(json: Any): PlaylistDetails {
+  const pl = get(json, 'contents.twoColumnWatchNextResults.playlist.playlist') ?? {}
+  const videos = onlyVideos(mapFeedItems(arr(pl.contents)))
+  return {
+    type: 'playlist',
+    title: readText(pl.title) || readText(pl.titleText),
+    playlistId: String(pl.playlistId ?? ''),
+    author: readText(pl.ownerName),
+    authorId: '',
+    authorUrl: '',
+    playlistThumbnail: videos[0]?.videoThumbnails.slice(-1)[0]?.url,
+    videoCount: videos.length,
+    videos,
+    isListed: false,
+  }
 }
 
 /** Error text from an `alerts` block, if the response is an error page. */
