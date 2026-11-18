@@ -61,6 +61,13 @@ export interface Caption {
   url: string
 }
 
+/** A chapter starts here and runs until the next one. */
+export interface Chapter {
+  title: string
+  /** Seconds from the start of the video. */
+  start: number
+}
+
 /** Sprite sheets used for seek-bar previews. */
 export interface Storyboard {
   url: string
@@ -80,6 +87,8 @@ export interface VideoDetails {
   videoId: string
   videoThumbnails: ImageRef[]
   storyboards?: Storyboard[]
+  /** Empty when the video has none, or on the Invidious backend. */
+  chapters?: Chapter[]
   description: string
   descriptionHtml: string
   published: number

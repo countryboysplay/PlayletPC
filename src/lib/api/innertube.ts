@@ -30,6 +30,7 @@ import {
   mapHomeFeed,
   mapPlaylist,
   mapRecommendations,
+  mapChapters,
   mapSearchResults,
   mapPlayerResponse,
   PlayabilityError
@@ -351,6 +352,7 @@ export class InnertubeClient implements Backend {
     try {
       const nextJson = await this.call('next', { videoId })
       video.recommendedVideos = mapRecommendations(nextJson)
+      video.chapters = mapChapters(nextJson)
     } catch {
       video.recommendedVideos = []
     }

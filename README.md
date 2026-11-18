@@ -14,8 +14,8 @@ defaults — but runs natively on Windows as a Tauri app with a Svelte front end
 - **Search** — with sort, type and duration filters, plus infinite scroll
 - **Channels** — videos, shorts and live tabs, with local subscriptions
 - **Playlists** — browse and play through
-- **Watch** — adaptive DASH playback at up to 2160p, with quality selection, a CC menu
-  that remembers your caption language, and keyboard control. Whole videos, not the first minute
+- **Watch** — adaptive DASH playback at up to 2160p, with quality selection, chapters on
+  the seek bar, a CC menu that remembers your caption language, and keyboard control. Whole videos, not the first minute
 - **Windows media controls** — title and artwork in the media flyout and on the lock
   screen, and the keyboard's Play/Pause and Next keys work while Playlet is the active
   media app
