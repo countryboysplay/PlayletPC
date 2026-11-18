@@ -340,6 +340,12 @@
     else void container.requestFullscreen()
   }
 
+  function togglePictureInPicture() {
+    if (document.pictureInPictureElement) void document.exitPictureInPicture()
+    // Rejects before the stream has loaded; the button just does nothing then.
+    else void videoEl?.requestPictureInPicture().catch(() => {})
+  }
+
   function showControls() {
     controlsVisible = true
     if (hideTimer) clearTimeout(hideTimer)
@@ -351,6 +357,8 @@
   function onKeydown(event: KeyboardEvent) {
     const target = event.target as HTMLElement | null
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
+    // Hidden while the video plays in picture-in-picture: other pages own the keyboard.
+    if (!container?.checkVisibility()) return
 
     switch (event.key) {
       case ' ':
@@ -574,6 +582,15 @@
             </ul>
           {/if}
         </div>
+      {/if}
+
+      {#if document.pictureInPictureEnabled}
+        <button onclick={togglePictureInPicture} aria-label="Picture in picture" title="Picture in picture" class="icon">
+          <svg viewBox="0 0 24 24" width="19" height="19">
+            <rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+            <rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" />
+          </svg>
+        </button>
       {/if}
 
       <button onclick={toggleFullscreen} aria-label="Fullscreen" class="icon">
