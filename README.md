@@ -13,7 +13,7 @@ defaults — but runs natively on Windows as a Tauri app with a Svelte front end
   shelf layout from Playlet's own `default_home_layout.json`
 - **Search** — with sort, type and duration filters, plus infinite scroll
 - **Channels** — videos, shorts and live tabs, with local subscriptions
-- **Playlists** — browse and play through
+- **Playlists** — browse and play through, including YouTube mixes
 - **Watch** — adaptive DASH playback at up to 2160p, with quality selection, chapters on
   the seek bar, a CC menu that remembers your caption language, and keyboard control. Whole videos, not the first minute
 - **Comments** — top comments under the video, loaded when you open them, with "Load more"

@@ -29,6 +29,7 @@ import {
   mapChannelVideos,
   mapHomeFeed,
   mapPlaylist,
+  mapMixPlaylist,
   mapRecommendations,
   mapChapters,
   commentsToken,
@@ -542,6 +543,15 @@ export class InnertubeClient implements Backend {
     const key = 'playlist:' + plid
     const cached = this.cache.get<PlaylistDetails>(key)
     if (cached) return cached
+
+    // A mix (RD...) has no browse page; /next returns it as the watch page's playlist panel.
+    if (plid.startsWith('RD')) {
+      const mix = mapMixPlaylist(await this.call('next', { playlistId: plid }))
+      if (mix.videos.length === 0) throw new HttpError('server', 'next', 'The mix returned no videos')
+      this.cache.set(key, mix, BROWSE_TTL_SECONDS)
+      return mix
+    }
+
     // Playlist browse ids are the playlist id prefixed with VL.
     const browseId = plid.startsWith('VL') ? plid : 'VL' + plid
 

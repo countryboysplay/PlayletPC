@@ -21,6 +21,7 @@ import {
   mapHomeFeed,
   mapPlayerResponse,
   mapPlaylist,
+  mapMixPlaylist,
   mapRecommendations,
   mapChapters,
   commentsToken,
@@ -649,6 +650,20 @@ eq(comments.comments[0].isEdited, false, 'not edited')
 eq(comments.comments[1].isEdited, true, '"(edited)" -> isEdited')
 ok(comments.comments.every(c => c.content && isHttps(c.authorThumbnails[0]?.url)), 'every comment has text and an avatar')
 eq(mapComments({}, 'x'), { videoId: 'x', comments: [] }, 'mapComments({}) -> empty')
+
+/* =================================================================== */
+section('next.web.mix.json  (RDATfmbG9maSBoaXAgaG9w, playlist panel only, 2026-11-18)')
+/* =================================================================== */
+
+const mix = mapMixPlaylist(load('next.web.mix.json'))
+eq(mix.title, 'Mix • Lofi hip hop', 'mix title')
+eq(mix.playlistId, 'RDATfmbG9maSBoaXAgaG9w', 'mix playlistId')
+eq(mix.author, 'YouTube', 'mix owner')
+eq(mix.videos.length, 24, 'all 24 playlist-panel videos mapped')
+eq(mix.videoCount, 24, 'videoCount = the batch loaded')
+ok(mix.videos.every(v => v.videoId && v.title && v.lengthSeconds > 0), 'every mix video has an id, title and length')
+eq(mix.videos[0].author, "L'indécis", 'byline comes from longBylineText')
+eq(mapMixPlaylist({}).videos, [], 'mapMixPlaylist({}) -> empty')
 
 /* =================================================================== */
 console.log(`\n================================`)
