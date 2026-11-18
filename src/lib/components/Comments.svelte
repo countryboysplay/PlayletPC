@@ -2,6 +2,7 @@
   import type { Comment } from '../api/types'
   import { session } from '../stores/session.svelte'
   import { formatCount } from '../format'
+  import AnimatedNumber from './AnimatedNumber.svelte'
 
   let { videoId }: { videoId: string } = $props()
 
@@ -37,7 +38,7 @@
 
 <section class="comments">
   <button class="head" aria-expanded={open} onclick={toggle}>
-    Comments{count ? ' · ' + formatCount(count) : ''}
+    Comments{#if count}{' · '}<AnimatedNumber value={count} />{/if}
     <span aria-hidden="true">{open ? '▴' : '▾'}</span>
   </button>
 

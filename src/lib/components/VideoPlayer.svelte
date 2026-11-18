@@ -15,6 +15,7 @@
   import { session } from '../stores/session.svelte'
   import { shell } from '../shell'
   import { formatDuration, pickThumbnail } from '../format'
+  import MorphText from './MorphText.svelte'
 
   interface Props {
     video: VideoDetails
@@ -537,7 +538,7 @@
 
       <span class="time tnum">{formatDuration(currentTime)} / {formatDuration(duration)}</span>
       {#if chapter?.title}
-        <span class="chapter" title={chapter.title}>{chapter.title}</span>
+        <span class="chapter" title={chapter.title}><MorphText text={chapter.title} /></span>
       {/if}
 
       <div class="spacer"></div>

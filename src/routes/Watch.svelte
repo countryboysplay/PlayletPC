@@ -10,8 +10,9 @@
   import VideoCard from '../lib/components/VideoCard.svelte'
   import Comments from '../lib/components/Comments.svelte'
   import StaggerText from '../lib/components/StaggerText.svelte'
+  import AnimatedNumber from '../lib/components/AnimatedNumber.svelte'
   import { storage } from '../lib/stores/storage'
-  import { formatCount, formatViews, formatRelativeTime, pickThumbnail } from '../lib/format'
+  import { formatViews, formatRelativeTime, pickThumbnail } from '../lib/format'
 
   interface Props {
     videoId: string
@@ -193,9 +194,9 @@
 
             <div class="spacer"></div>
 
-            <span class="stat tnum">{formatViews(video.viewCount)}</span>
+            <span class="stat tnum"><AnimatedNumber value={video.viewCount} format={formatViews} /></span>
             {#if video.likeCount}
-              <span class="stat tnum">{formatCount(video.likeCount)} likes</span>
+              <span class="stat tnum"><AnimatedNumber value={video.likeCount} /> likes</span>
             {/if}
             <span class="stat tnum">{video.publishedText || formatRelativeTime(video.published)}</span>
 

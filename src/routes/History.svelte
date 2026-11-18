@@ -2,6 +2,7 @@
   import { library } from '../lib/stores/library.svelte'
   import { router } from '../lib/router.svelte'
   import { formatDuration } from '../lib/format'
+  import MorphText from '../lib/components/MorphText.svelte'
 
   let confirmingClear = $state(false)
 
@@ -18,7 +19,7 @@
 
 <div class="page">
   <header class="head">
-    <h1>History</h1>
+    <h1><MorphText text="History" /></h1>
     {#if library.history.length > 0}
       {#if confirmingClear}
         <div class="confirm">

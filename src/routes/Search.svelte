@@ -5,6 +5,7 @@
   import { settings } from '../lib/stores/settings.svelte'
   import { router } from '../lib/router.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
+  import MorphText from '../lib/components/MorphText.svelte'
   import { formatCount, pickThumbnail } from '../lib/format'
 
   interface Props {
@@ -119,7 +120,7 @@
 
 <div class="page">
   <header class="head">
-    <h1>{query}</h1>
+    <h1><MorphText text={query} /></h1>
     <div class="filters">
       {#each types as option (option.value)}
         <button class="chip" class:on={type === option.value} onclick={() => (type = option.value)}>

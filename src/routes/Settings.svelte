@@ -7,6 +7,7 @@
   import { library } from '../lib/stores/library.svelte'
   import { allowHosts } from '../lib/desktop'
   import { shell } from '../lib/shell'
+  import MorphText from '../lib/components/MorphText.svelte'
 
   let instances = $state<InstanceInfo[]>([])
   let probes = $state<HealthResult[]>([])
@@ -100,7 +101,7 @@
 </script>
 
 <div class="page">
-  <h1>Settings</h1>
+  <h1><MorphText text="Settings" /></h1>
 
   <section class="group">
     <header>

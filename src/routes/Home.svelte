@@ -7,6 +7,7 @@
   import { library } from '../lib/stores/library.svelte'
   import Shelf from '../lib/components/Shelf.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
+  import MorphText from '../lib/components/MorphText.svelte'
 
   interface FeedSource {
     id: string
@@ -202,7 +203,7 @@
 
   {#if !hasAnything}
     <section class="first-run">
-      <h1>Find something to watch</h1>
+      <h1><MorphText text="Find something to watch" /></h1>
       <p>
         Playlet talks to YouTube directly, and a signed-out YouTube has no front page to
         show. Search for something, then subscribe to the channels you like — their new

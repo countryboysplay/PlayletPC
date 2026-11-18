@@ -3,6 +3,7 @@
   import { session } from '../lib/stores/session.svelte'
   import { router } from '../lib/router.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
+  import StaggerText from '../lib/components/StaggerText.svelte'
   import { formatCount } from '../lib/format'
 
   interface Props {
@@ -49,7 +50,7 @@
   {:else if playlist}
     <header class="head">
       <div>
-        <h1>{playlist.title}</h1>
+        <h1><StaggerText text={playlist.title} /></h1>
         <p class="meta tnum">
           {playlist.author} · {formatCount(playlist.videoCount)} videos
         </p>

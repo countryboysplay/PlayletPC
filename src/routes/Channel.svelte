@@ -3,6 +3,7 @@
   import { session } from '../lib/stores/session.svelte'
   import { library } from '../lib/stores/library.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
+  import StaggerText from '../lib/components/StaggerText.svelte'
   import { formatCount, pickThumbnail } from '../lib/format'
 
   interface Props {
@@ -110,7 +111,7 @@
           <img class="avatar" src={pickThumbnail(channel.authorThumbnails, 160)} alt="" width="80" height="80" />
         {/if}
         <div class="identity-text">
-          <h1>{channel.author}</h1>
+          <h1><StaggerText text={channel.author} /></h1>
           <p class="stats tnum">
             {formatCount(channel.subCount)} subscribers · {formatCount(channel.videoCount)} videos
           </p>

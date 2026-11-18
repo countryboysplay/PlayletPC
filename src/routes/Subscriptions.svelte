@@ -6,6 +6,7 @@
   import { router } from '../lib/router.svelte'
   import { account } from '../lib/stores/account.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
+  import MorphText from '../lib/components/MorphText.svelte'
 
   let videos = $state<VideoSummary[]>([])
   let loading = $state(false)
@@ -47,7 +48,7 @@
 
 <div class="page">
   <header class="head">
-    <h1>Subscriptions</h1>
+    <h1><MorphText text="Subscriptions" /></h1>
     {#if library.subscriptions.length > 0}
       <button class="btn" onclick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
     {/if}
