@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { VideoSummary } from '../api/types'
   import VideoCard from './VideoCard.svelte'
+  import Icon from './Icon.svelte'
 
   interface Props {
     title: string
@@ -27,8 +28,8 @@
     <h2>{title}</h2>
     {#if videos.length > 0}
       <div class="pager">
-        <button onclick={() => scrollBy(-1)} aria-label={'Scroll ' + title + ' left'}>‹</button>
-        <button onclick={() => scrollBy(1)} aria-label={'Scroll ' + title + ' right'}>›</button>
+        <button onclick={() => scrollBy(-1)} aria-label={'Scroll ' + title + ' left'}><Icon name="left" /></button>
+        <button onclick={() => scrollBy(1)} aria-label={'Scroll ' + title + ' right'}><Icon name="right" /></button>
       </div>
     {/if}
   </header>
@@ -52,7 +53,8 @@
     </div>
   {:else}
     <div class="track" bind:this={track}>
-      {#each videos as video (video.videoId)}
+      <!-- Position in the key: YouTube can repeat a video, and a duplicate key throws. -->
+      {#each videos as video, i (i + video.videoId)}
         <VideoCard {video} />
       {/each}
     </div>
@@ -106,7 +108,11 @@
     gap: var(--space-4);
     overflow-x: auto;
     scroll-snap-type: x proximity;
-    padding-bottom: var(--space-2);
+    /* Room for the hover plate, which a scroller would otherwise clip; the negative
+       margin keeps the first card aligned with the shelf title. */
+    padding: 12px;
+    margin: -12px -12px -4px;
+    scroll-padding-left: 12px;
     scrollbar-width: none;
   }
 

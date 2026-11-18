@@ -251,6 +251,9 @@ function collectImageEntries(node: Any, depth = 0): Any[] {
     'decoratedAvatarViewModel',
     'imageBannerViewModel',
     'contentImage',
+    // Playlist lockups: contentImage.collectionThumbnailViewModel.primaryThumbnail.thumbnailViewModel
+    'collectionThumbnailViewModel',
+    'primaryThumbnail',
     'movingThumbnailDetails',
     'movingThumbnailRenderer',
     'richThumbnail',

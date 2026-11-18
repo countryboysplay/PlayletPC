@@ -22,9 +22,10 @@ export function formatCount(value: number | undefined): string {
   return countFormatter.format(value)
 }
 
+/** Zero means "not known" here (history records and some API mappings store 0), so it shows nothing. */
 export function formatViews(value: number | undefined): string {
+  if (!value) return ''
   const count = formatCount(value)
-  if (!count) return ''
   return count + (value === 1 ? ' view' : ' views')
 }
 

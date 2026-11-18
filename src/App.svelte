@@ -91,7 +91,7 @@
         </div>
       {:else}
         {#if route.name === 'watch' || inPip}
-          <div hidden={route.name !== 'watch'}>
+          <div class="watch-host" hidden={route.name !== 'watch'}>
             <Watch videoId={watchId} />
           </div>
         {/if}
@@ -126,6 +126,11 @@
     display: flex;
     flex: 1;
     min-height: 0;
+  }
+
+  /* Watch fills the window exactly instead of scrolling. */
+  .watch-host {
+    height: 100%;
   }
 
   main {
@@ -164,7 +169,7 @@
     letter-spacing: -0.02em;
     display: inline-flex;
     align-items: center;
-    color: var(--accent);
+    color: var(--ink);
   }
 
   .mark .chip {

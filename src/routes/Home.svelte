@@ -7,6 +7,7 @@
   import { library } from '../lib/stores/library.svelte'
   import Shelf from '../lib/components/Shelf.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
+  import MorphText from '../lib/components/MorphText.svelte'
 
   interface FeedSource {
     id: string
@@ -202,7 +203,7 @@
 
   {#if !hasAnything}
     <section class="first-run">
-      <h1>Find something to watch</h1>
+      <h1><MorphText text="Find something to watch" /></h1>
       <p>
         Playlet talks to YouTube directly, and a signed-out YouTube has no front page to
         show. Search for something, then subscribe to the channels you like — their new
@@ -243,8 +244,8 @@
     margin-right: var(--space-5);
     padding: var(--space-3) var(--space-4);
     border-radius: var(--r-card);
-    background: var(--accent-wash);
-    border: 1px solid rgba(255, 28, 48, 0.3);
+    background: var(--chip-hi);
+    border: 1px solid var(--edge);
   }
 
   .notice p {
@@ -262,11 +263,14 @@
     padding-right: var(--space-6);
   }
 
+  /* Same room for the hover plate as Shelf's track. */
   .resume-track {
     display: flex;
     gap: var(--space-4);
     overflow-x: auto;
-    padding-bottom: var(--space-2);
+    padding: 12px;
+    margin: -12px -12px -4px;
+    scroll-padding-left: 12px;
     scrollbar-width: none;
   }
 

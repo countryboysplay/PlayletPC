@@ -1,9 +1,15 @@
 /*
- * Playlet Desktop - design tokens and base styles.
+ * Playlet Desktop - design tokens and base styles. Direction: "Black & gold".
  *
- * Palette is sampled from the Playlet channel art: ground #EBEBEB, chip #272727,
- * accent #FF1C30. The graphite ramp is warm-neutral rather than tinted black, so
- * thumbnails (which are rarely neutral) sit on it without a colour cast.
+ * Graphite Ink is the ground everywhere; Butterscotch Gold is the ink (titles, text,
+ * icons, hairlines) and the accent; Hyper Cobalt is one primary action per screen and
+ * a source of light (glows). Surfaces are neumorphic in graphite: raised and pressed
+ * shapes made of a light and a dark shadow in the ground's own hue. The owner moved
+ * here from a gold ground after seeing it live (docs/ROADMAP.md, Phase 5).
+ *
+ * Contrast (WCAG): gold on graphite 7.2:1, white on cobalt 6.1:1, every --ink-* token
+ * at least 4.5:1 on --ground. Cobalt on graphite is only 2.7:1, so cobalt is a fill
+ * with white text or a glow, never text, thin icons or a focus ring.
  */
 
 @font-face {
@@ -14,28 +20,49 @@
 }
 
 :root {
-  /* Surfaces: elevation is expressed as lightness on the graphite ramp, not shadow. */
-  --ground: #171717;
-  --chip: #272727;
-  --chip-hi: #323232;
-  --chip-hover: #3a3a3a;
-  --edge: #3d3d3d;
-  --edge-soft: #2f2f2f;
+  /* The palette. Components use the role tokens below, not these. */
+  --gold: #d9a23a;
+  --graphite: #1e1f24;
+  --graphite-hi: #2c2d34;
+  --graphite-lo: #111216;
+  --cobalt: #2448ff;
+  --cobalt-dim: #1a36cc;
 
-  /* Ink */
-  --ink: #ebebeb;
-  --ink-dim: #9a9a9a;
-  --ink-faint: #6e6e6e;
+  /* Surfaces */
+  --ground: var(--graphite);
+  --chip: var(--graphite-hi);
+  --chip-hi: #34353d;
+  --chip-hover: #3a3b44;
+  --edge: #3a3b42;
+  --edge-soft: #2a2b31;
 
-  /* Brand accent - reserved for state, never decoration. */
-  --accent: #ff1c30;
-  --accent-dim: #c81527;
-  --accent-wash: rgba(255, 28, 48, 0.14);
+  /* Ink: every value is at least 4.5:1 on --ground. */
+  --ink: var(--gold);
+  --ink-dim: #c9a25a;
+  --ink-faint: #b08a48;
 
-  /* Radius is hierarchical: the player chip echoes the logo, controls stay tight. */
-  --r-chip: 16px;
-  --r-card: 8px;
-  --r-control: 6px;
+  /* The bold 10%: fills only, with white text on them. */
+  --accent: var(--cobalt);
+  --accent-dim: var(--cobalt-dim);
+  --accent-ink: #ffffff;
+
+  /* Neumorphic depth in graphite: light from the top left. */
+  --raise: 5px 5px 12px var(--graphite-lo), -4px -4px 10px var(--graphite-hi);
+  --raise-sm: 3px 3px 7px var(--graphite-lo), -2px -2px 6px var(--graphite-hi);
+  --press: inset 3px 3px 7px var(--graphite-lo), inset -3px -3px 7px var(--graphite-hi);
+  /* Pressed into a gold fill (selected chips and cards): the gold's own shade and light,
+     because graphite shadows smear a gold fill into a dark halo. */
+  --press-gold: inset 2px 2px 4px #a9792a, inset -2px -2px 4px #edbe5e;
+
+  /* Frosted glass, only where something moves or scrolls underneath. The tints are
+     strong on purpose: text on them must survive a white video frame. */
+  --glass-graphite: rgba(30, 31, 36, 0.62);
+  --glass-edge: rgba(255, 236, 196, 0.16);
+  --glass-blur: blur(18px) saturate(150%);
+
+  --r-chip: 22px;
+  --r-card: 16px;
+  --r-control: 10px;
   --r-pill: 999px;
 
   --space-1: 4px;
@@ -46,15 +73,55 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  --rail-width: 72px;
+  --rail-width: 68px;
   --titlebar-height: 40px;
 
   --font-display: 'Archivo', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
-  --font-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-ui: 'Inter Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
 
   --ease: cubic-bezier(0.2, 0, 0.1, 1);
+  --spring: cubic-bezier(0.3, 1.4, 0.5, 1);
 
   color-scheme: dark;
+}
+
+/* Chrome (title bar, rail, player, glass panels) paints its own graphite ground. The
+   tokens match the root now; the class stays so these surfaces keep their background
+   and stay graphite even inside a lighter container. */
+.zone-graphite {
+  --ground: var(--graphite);
+  --ink: var(--gold);
+  --ink-dim: #c9a25a;
+  --ink-faint: #b08a48;
+  color-scheme: dark;
+  background: var(--ground);
+  color: var(--ink);
+}
+
+/* Neumorphic buttons for every screen: raised at rest, pressed in while clicked.
+   :where() keeps all of this at zero specificity, so a screen's own shadow (a pressed
+   "Subscribed") always wins. */
+:where(button.btn:not(:disabled), button.primary:not(:disabled), button.ghost:not(:disabled), button.cta:not(:disabled), button.load-more:not(:disabled), button.retry:not(:disabled), button.danger:not(:disabled), button.chip:not(:disabled)) {
+  box-shadow: var(--raise-sm);
+  transition: box-shadow 160ms var(--ease), transform 160ms var(--ease), background-color 160ms var(--ease);
+}
+
+:where(button.btn:not(:disabled):active, button.primary:not(:disabled):active, button.ghost:not(:disabled):active, button.cta:not(:disabled):active, button.load-more:not(:disabled):active, button.retry:not(:disabled):active, button.danger:not(:disabled):active, button.chip:not(:disabled):active) {
+  box-shadow: var(--press);
+  transform: translateY(1px);
+}
+
+/* A selected filter chip stays pressed in. */
+:where(button.chip.on) {
+  box-shadow: var(--press-gold);
+}
+
+/* Frosted graphite glass for whatever floats over the video: the player dock and its notices. */
+.frost {
+  background: var(--glass-graphite);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
 }
 
 * {
@@ -130,7 +197,7 @@ a {
 
 /* Keyboard focus must stay visible everywhere; this app is navigable without a mouse. */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: var(--r-control);
 }
@@ -148,7 +215,7 @@ a {
   border: 2px solid var(--ground);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4d4d4d;
+  background: var(--chip-hover);
 }
 
 /* Truncate to a fixed number of lines - used for video titles in shelves. */

@@ -3,6 +3,7 @@
   import { session } from '../lib/stores/session.svelte'
   import { router } from '../lib/router.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
+  import StaggerText from '../lib/components/StaggerText.svelte'
   import { formatCount } from '../lib/format'
 
   interface Props {
@@ -49,9 +50,9 @@
   {:else if playlist}
     <header class="head">
       <div>
-        <h1>{playlist.title}</h1>
+        <h1><StaggerText text={playlist.title} /></h1>
         <p class="meta tnum">
-          {playlist.author} · {formatCount(playlist.videoCount)} videos
+          {playlist.author}{playlist.videoCount ? ` · ${formatCount(playlist.videoCount)} videos` : ''}
         </p>
         {#if playlist.description}
           <p class="description">{playlist.description}</p>
@@ -64,7 +65,8 @@
 
     {#if playlist.videos?.length}
       <div class="grid">
-        {#each playlist.videos as video (video.videoId)}
+        <!-- Position in the key: a playlist can hold the same video twice. -->
+        {#each playlist.videos as video, i (i + video.videoId)}
           <VideoCard {video} variant="grid" />
         {/each}
       </div>

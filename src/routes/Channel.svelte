@@ -3,6 +3,7 @@
   import { session } from '../lib/stores/session.svelte'
   import { library } from '../lib/stores/library.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
+  import StaggerText from '../lib/components/StaggerText.svelte'
   import { formatCount, pickThumbnail } from '../lib/format'
 
   interface Props {
@@ -110,7 +111,7 @@
           <img class="avatar" src={pickThumbnail(channel.authorThumbnails, 160)} alt="" width="80" height="80" />
         {/if}
         <div class="identity-text">
-          <h1>{channel.author}</h1>
+          <h1><StaggerText text={channel.author} /></h1>
           <p class="stats tnum">
             {formatCount(channel.subCount)} subscribers · {formatCount(channel.videoCount)} videos
           </p>
@@ -139,7 +140,8 @@
       </div>
     {:else}
       <div class="grid">
-        {#each videos as video (video.videoId)}
+        <!-- Position in the key: YouTube can repeat a video, and a duplicate key throws. -->
+        {#each videos as video, i (i + video.videoId)}
           <VideoCard {video} variant="grid" />
         {/each}
       </div>
@@ -222,9 +224,21 @@
     background: var(--chip-hover);
   }
 
-  .subscribe.on {
-    background: var(--accent-wash);
-    color: var(--accent);
+  /* Subscribe is the screen's one primary action; once subscribed it sits pressed in. */
+  .subscribe {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .subscribe:hover {
+    background: var(--accent-dim);
+  }
+
+  .subscribe.on,
+  .subscribe.on:hover {
+    background: var(--chip);
+    color: var(--ink);
+    box-shadow: var(--press);
   }
 
   .description {
@@ -236,28 +250,30 @@
     white-space: pre-wrap;
   }
 
+  /* Tabs are chips, like Search's filters, so the selected one gets the one selected look. */
   .tabs {
     display: flex;
-    gap: var(--space-4);
-    border-bottom: 1px solid var(--edge-soft);
+    gap: var(--space-2);
   }
 
   .tab {
-    padding: var(--space-2) 2px;
+    padding: 5px 12px;
+    border-radius: var(--r-pill);
+    background: var(--chip);
     font-size: 13px;
     font-weight: 600;
-    color: var(--ink-faint);
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-  }
-
-  .tab:hover {
     color: var(--ink-dim);
   }
 
-  .tab.on {
+  .tab:hover {
+    background: var(--chip-hover);
     color: var(--ink);
-    border-bottom-color: var(--accent);
+  }
+
+  .tab.on {
+    color: var(--ground);
+    background: var(--gold);
+    box-shadow: var(--press-gold);
   }
 
   .grid {

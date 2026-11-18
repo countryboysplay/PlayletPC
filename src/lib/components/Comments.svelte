@@ -2,6 +2,10 @@
   import type { Comment } from '../api/types'
   import { session } from '../stores/session.svelte'
   import { formatCount } from '../format'
+  import AnimatedNumber from './AnimatedNumber.svelte'
+  import Icon from './Icon.svelte'
+  import { prefersReducedMotion } from 'svelte/motion'
+  import { tick } from 'svelte'
 
   let { videoId }: { videoId: string } = $props()
 
@@ -29,16 +33,22 @@
     }
   }
 
-  function toggle() {
+  let head: HTMLButtonElement
+  async function toggle() {
     open = !open
-    if (open && !loaded && !loading) void load()
+    if (!open) return
+    if (!loaded && !loading) await load()
+    await tick()
+    // The details strip is short; bring the list into view instead of opening it below the fold.
+    // Closed again, or the page moved on, while comments were loading: don't jump.
+    if (open) head?.scrollIntoView({ block: 'start', behavior: prefersReducedMotion.current ? 'auto' : 'smooth' })
   }
 </script>
 
 <section class="comments">
-  <button class="head" aria-expanded={open} onclick={toggle}>
-    Comments{count ? ' · ' + formatCount(count) : ''}
-    <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+  <button class="head" bind:this={head} aria-expanded={open} onclick={toggle}>
+    Comments{#if count}{' · '}<AnimatedNumber value={count} />{/if}
+    <Icon name={open ? 'up' : 'down'} />
   </button>
 
   {#if open}
@@ -83,12 +93,23 @@
     margin-top: var(--space-2);
   }
 
+  /* Same fold header as the Watch page's Description. */
   .head {
     align-self: flex-start;
     display: flex;
+    align-items: center;
     gap: var(--space-2);
-    font-size: 15px;
-    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: var(--r-pill);
+    background: var(--ground);
+    box-shadow: var(--raise-sm);
+    font-size: 14px;
+    font-weight: 700;
+    transition: box-shadow 160ms var(--ease);
+  }
+
+  .head[aria-expanded='true'] {
+    box-shadow: var(--press);
   }
 
   .comment {

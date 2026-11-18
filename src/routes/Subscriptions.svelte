@@ -6,6 +6,7 @@
   import { router } from '../lib/router.svelte'
   import { account } from '../lib/stores/account.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
+  import MorphText from '../lib/components/MorphText.svelte'
 
   let videos = $state<VideoSummary[]>([])
   let loading = $state(false)
@@ -47,7 +48,7 @@
 
 <div class="page">
   <header class="head">
-    <h1>Subscriptions</h1>
+    <h1><MorphText text="Subscriptions" /></h1>
     {#if library.subscriptions.length > 0}
       <button class="btn" onclick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
     {/if}
@@ -118,7 +119,8 @@
       <div class="empty"><p>No recent uploads from these channels.</p></div>
     {:else}
       <div class="grid">
-        {#each videos as video (video.videoId)}
+        <!-- Position in the key: YouTube can repeat a video, and a duplicate key throws. -->
+        {#each videos as video, i (i + video.videoId)}
           <VideoCard {video} variant="grid" />
         {/each}
       </div>

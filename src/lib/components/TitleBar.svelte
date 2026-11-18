@@ -3,10 +3,20 @@
   import { library } from '../stores/library.svelte'
   import { settings } from '../stores/settings.svelte'
   import { shell } from '../shell'
+  import { prefersReducedMotion } from 'svelte/motion'
 
   let query = $state('')
   let focused = $state(false)
   let input: HTMLInputElement | undefined = $state()
+
+  // The empty box cycles what you can search for (Vengeance UI's Flip Fade Text).
+  const kinds = ['videos', 'channels', 'playlists']
+  let kind = $state(0)
+  $effect(() => {
+    if (query || prefersReducedMotion.current) return
+    const timer = setInterval(() => (kind = (kind + 1) % kinds.length), 2600)
+    return () => clearInterval(timer)
+  })
 
   const suggestions = $derived(
     focused && settings.searchHistoryEnabled ? library.searchSuggestions(query) : []
@@ -48,7 +58,7 @@
   })
 </script>
 
-<header class="titlebar" data-tauri-drag-region>
+<header class="titlebar zone-graphite" data-tauri-drag-region>
   <div class="left">
     <button class="back" onclick={() => router.back()} disabled={!router.canGoBack} aria-label="Back">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -62,17 +72,23 @@
       <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
       <path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
     </svg>
-    <input
-      bind:this={input}
-      bind:value={query}
-      onfocus={() => (focused = true)}
-      onblur={() => setTimeout(() => (focused = false), 120)}
-      onkeydown={onKeydown}
-      type="search"
-      placeholder="Search videos, channels, playlists"
-      aria-label="Search"
-      spellcheck="false"
-    />
+    <span class="field">
+      <input
+        bind:this={input}
+        bind:value={query}
+        onfocus={() => (focused = true)}
+        onblur={() => setTimeout(() => (focused = false), 120)}
+        onkeydown={onKeydown}
+        type="search"
+        aria-label="Search videos, channels, playlists"
+        spellcheck="false"
+      />
+      {#if !query}
+        <span class="hint" aria-hidden="true">
+          {#if prefersReducedMotion.current}Search videos, channels, playlists{:else}Search {#key kind}<span class="flip">{kinds[kind]}</span>{/key}{/if}
+        </span>
+      {/if}
+    </span>
 
     {#if suggestions.length > 0}
       <ul class="suggestions">
@@ -143,7 +159,8 @@
     gap: var(--space-2);
     height: 28px;
     padding: 0 var(--space-3);
-    background: var(--chip);
+    background: var(--ground);
+    box-shadow: var(--press);
     border: 1px solid transparent;
     border-radius: var(--r-pill);
     /* The search field is interactive, so it must opt out of the window drag region. */
@@ -151,8 +168,7 @@
   }
 
   .search:focus-within {
-    border-color: var(--edge);
-    background: var(--chip-hi);
+    border-color: var(--ink-dim);
   }
 
   .glass {
@@ -160,17 +176,44 @@
     flex: 0 0 auto;
   }
 
-  .search input {
+  .field {
     flex: 1;
     min-width: 0;
-    background: none;
-    border: none;
-    outline: none;
+    display: grid;
+    align-items: center;
+  }
+
+  .search input,
+  .hint {
+    grid-area: 1 / 1;
+    min-width: 0;
     font-size: 13px;
   }
 
-  .search input::placeholder {
+  .search input {
+    background: none;
+    border: none;
+    outline: none;
+  }
+
+  .hint {
     color: var(--ink-faint);
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    perspective: 400px;
+  }
+
+  .flip {
+    display: inline-block;
+    animation: flip 460ms ease backwards;
+  }
+
+  @keyframes flip {
+    from {
+      opacity: 0;
+      transform: rotateX(-90deg);
+    }
   }
 
   .search input::-webkit-search-cancel-button {
