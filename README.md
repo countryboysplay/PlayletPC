@@ -16,6 +16,7 @@ defaults — but runs natively on Windows as a Tauri app with a Svelte front end
 - **Playlists** — browse and play through
 - **Watch** — adaptive DASH playback at up to 2160p, with quality selection, chapters on
   the seek bar, a CC menu that remembers your caption language, and keyboard control. Whole videos, not the first minute
+- **Comments** — top comments under the video, loaded when you open them, with "Load more"
 - **Picture-in-picture** — pop the video into a floating window and keep watching while
   you browse; leaving the floating window brings you back to the video
 - **Queue** — "Play next" and "Add to queue" on any video; the queue plays before the
@@ -124,8 +125,7 @@ using Invidious like this currently"*.
 - **No account linking.** Subscriptions, history and resume points are stored locally
   and are not synced to a YouTube or Invidious account. The Invidious auth endpoints are
   implemented in the client but not wired to a login flow.
-- **No comments view.** The direct backend returns an empty comment list rather than
-  pretending to fail; the UI has no comments surface yet.
+- **Comments are read-only and top-level.** No replies, no sorting, no posting.
 - **No editorial home feed on the direct backend.** YouTube retired Trending (every
   `FEtrending` browse id answers HTTP 400) and the signed-out Recommended feed
   (`FEwhat_to_watch`) comes back genuinely empty, with or without a consent cookie;

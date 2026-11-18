@@ -22,6 +22,7 @@ import type {
   Chapter,
   ChannelDetails,
   ChannelSummary,
+  CommentsResponse,
   FormatStream,
   ImageRef,
   PlaylistDetails,
@@ -1150,6 +1151,55 @@ function headerMetaParts(node: Any): MetaPart[] {
         a11y: typeof p?.accessibilityLabel === 'string' ? p.accessibilityLabel : '',
       })
     }
+  }
+  return out
+}
+
+/** /next (the video itself) -> the token that opens its comments, if it has any. */
+export function commentsToken(json: Any): string | undefined {
+  const results = arr(get(json, 'contents.twoColumnWatchNextResults.results.results.contents'))
+  const section = results.find((c) => c?.itemSectionRenderer?.sectionIdentifier === 'comment-item-section')
+  return section ? extractContinuation(section.itemSectionRenderer) : undefined
+}
+
+/**
+ * /next with a comments continuation -> CommentsResponse.
+ * Each thread holds only a key; the comment itself is a commentEntityPayload in
+ * frameworkUpdates (observed 2026-11-18).
+ */
+export function mapComments(json: Any, videoId: string): CommentsResponse {
+  const entities = new Map<string, Any>()
+  for (const m of arr(get(json, 'frameworkUpdates.entityBatchUpdate.mutations'))) {
+    const e = m?.payload?.commentEntityPayload
+    if (e?.key) entities.set(e.key, e)
+  }
+  const { items, continuation } = mapContinuation(json)
+  const out: CommentsResponse = { videoId, comments: [] }
+  if (continuation) out.continuation = continuation
+  for (const it of items as Any[]) {
+    const header = it?.commentsHeaderRenderer
+    if (header) out.commentCount = parseCompactNumber(header.countText)
+    const vm = it?.commentThreadRenderer?.commentViewModel?.commentViewModel
+    const e = vm && entities.get(vm.commentKey)
+    if (!e) continue
+    const p = e.properties ?? {}
+    const author = e.author ?? {}
+    const content = readText(p.content)
+    const publishedText = readText(p.publishedTime)
+    out.comments.push({
+      author: author.displayName ?? '',
+      authorThumbnails: author.avatarThumbnailUrl ? [{ url: author.avatarThumbnailUrl, width: 88, height: 88 }] : [],
+      authorId: author.channelId ?? '',
+      authorUrl: channelUrl(author.channelId ?? ''),
+      isEdited: /edited/i.test(publishedText),
+      content,
+      contentHtml: toHtml(content),
+      published: parseRelativeTime(publishedText),
+      publishedText,
+      likeCount: parseCompactNumber(e.toolbar?.likeCountNotliked),
+      commentId: p.commentId ?? vm.commentId ?? '',
+      authorIsChannelOwner: Boolean(author.isCreator),
+    })
   }
   return out
 }
