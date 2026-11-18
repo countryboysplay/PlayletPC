@@ -197,15 +197,18 @@ ok(
   cap.hlsUrl?.slice(0, 60),
 )
 
-eq(cap.captions.length, 6, 'exactly 6 caption tracks')
+eq(cap.captions.length, 5, '5 caption tracks (the 6th, English auto-generated, duplicates English)')
 eq(
   cap.captions.map((c) => c.language_code),
-  ['en', 'en', 'de-DE', 'ja', 'pt-BR', 'es-419'],
+  ['en', 'de-DE', 'ja', 'pt-BR', 'es-419'],
   'caption language_code list (snake_case field)',
 )
-eq(cap.captions[0].label, 'English', 'caption[0].label')
-eq(cap.captions[1].label, 'English (auto-generated)', 'caption[1].label')
-eq(cap.captions[2].label, 'German (Germany)', 'caption[2].label')
+eq(cap.captions[0].label, 'English', 'caption[0].label (the human track wins over auto-generated)')
+eq(cap.captions[1].label, 'German (Germany)', 'caption[1].label')
+ok(
+  cap.captions.every((c) => new URL(c.url).searchParams.get('fmt') === 'vtt'),
+  'every caption url asks for fmt=vtt',
+)
 ok(
   cap.captions.every((c) => c.url.startsWith('https://www.youtube.com/api/timedtext')),
   'every caption url is a timedtext endpoint',
