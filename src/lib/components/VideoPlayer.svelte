@@ -74,10 +74,10 @@
    * `languageCode`. Normalising here keeps the mismatch in one place instead of
    * failing later, mid-playback, when a caption track is requested.
    */
-  function playableVideo() {
+  function playableVideo(v: VideoDetails = video) {
     return {
-      ...video,
-      captions: (video.captions ?? []).map(caption => ({
+      ...v,
+      captions: (v.captions ?? []).map(caption => ({
         label: caption.label,
         languageCode: caption.language_code,
         url: caption.url
@@ -118,6 +118,15 @@
       onEnded?.()
     })
     player.on('error', payload => {
+      // A direct progressive stream (the 360p fallback) is not proxied, so nothing renews
+      // its URL; it expires after a few hours, e.g. across a long pause. Refetch once.
+      if (session.isDirect && payload.error.sourceKind === 'progressive' && !autoRetried) {
+        autoRetried = true
+        // The element pauses on the error, but it only fetches while playing or just
+        // asked to play, so resume rather than leave a frozen frame.
+        void retry().then(() => player?.play())
+        return
+      }
       loadError = describePlaybackError(payload.error)
       const { code, sourceKind, uri, httpStatus } = payload.error
       errorDetail = [code, sourceKind, httpStatus ? 'HTTP ' + httpStatus : null, uri]
@@ -169,6 +178,21 @@
       loadError = err instanceof Error ? err.message : 'Could not start this video.'
       const code = (err as { code?: string; status?: number }).status
       errorDetail = code ? 'HTTP ' + code : null
+    }
+  }
+
+  let autoRetried = false
+
+  /** On the direct backend, refetch first: the stream URLs themselves may have expired. */
+  async function retry() {
+    if (!player) return
+    loadError = null
+    errorDetail = null
+    try {
+      const fresh = session.isDirect ? await session.api.video(video.videoId, { noCache: true }) : null
+      await player.recover({ forceProxy: !session.isDirect, video: fresh ? playableVideo(fresh) : undefined })
+    } catch (err) {
+      loadError = err instanceof Error ? err.message : 'Could not start this video.'
     }
   }
 
@@ -370,7 +394,7 @@
         <p class="detail">{errorDetail}</p>
       {/if}
       <div class="failure-actions">
-        <button class="primary" onclick={() => player?.recover({ forceProxy: !session.isDirect })}>
+        <button class="primary" onclick={retry}>
           {session.isDirect ? 'Try again' : 'Retry through the instance'}
         </button>
         <button class="ghost" onclick={() => shell.openExternal('https://www.youtube.com/watch?v=' + video.videoId)}>

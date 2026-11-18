@@ -11,6 +11,10 @@
  *                Verified across a whole 635s video - HTTP 206 with real media at
  *                1/25/50/75/95/99.9% of the file. Needs `X-Goog-Visitor-Id` or it
  *                answers LOGIN_REQUIRED. This is yt-dlp's default client.
+ *   ANDROID      The fallback. Adaptive formats are all ciphered, but the one muxed
+ *                360p format (itag 18) is a direct URL that serves the whole file.
+ *                No visitor id, no PoToken. With no manifest the player plays it
+ *                progressively. Measured 2026-11-18 at 60% and 95% of three videos.
  *   ANDROID_VR   LOGIN_REQUIRED as of 2026-09-17, but cheap to try.
  *   TVHTML5      What the upstream Roku app uses. Works from Roku hardware.
  *   WEB_EMBEDDED Last resort.
@@ -22,10 +26,10 @@
  *   tv           LOGIN_REQUIRED
  *   web / mweb   UNPLAYABLE
  *
- * So VISIONOS is not merely the first rung - it is currently the ONLY rung that
- * serves media. The others are kept because they cost one request each and have
- * reopened before, but nothing below VISIONOS should be mistaken for a safety net.
- * That is why the visitor id now comes from a four-source cascade in
+ * Below VISIONOS, only ANDROID serves media (at 360p). The rest are kept because they
+ * cost one request each and have reopened before.
+ *
+ * VISIONOS is still the only full-quality rung. That is why the visitor id now comes from a four-source cascade in
  * `innertube.rs::fetch_identity`: with one client working and one source for the
  * one header it requires, a single scrape failure took all playback down.
  *
@@ -36,10 +40,11 @@
  * offset, including 1%**: not capped any more, simply dead. Keep it out.
  */
 
-export type PlayerClientName = 'visionos' | 'android_vr' | 'tv' | 'web_embedded'
+export type PlayerClientName = 'visionos' | 'android' | 'android_vr' | 'tv' | 'web_embedded'
 
 export const PLAYER_CLIENT_LADDER: readonly PlayerClientName[] = [
   'visionos',
+  'android',
   'android_vr',
   'tv',
   'web_embedded'

@@ -12,6 +12,8 @@
  */
 
 import { PLAYER_CLIENT_LADDER, SIGNED_IN_LADDER, CAPPED_CLIENTS } from '../src/lib/api/player-clients'
+import { buildSourceCandidates } from '../src/lib/player/sources'
+import { normalizeInstance } from '../src/lib/player/invidious'
 
 let pass = 0
 let fail = 0
@@ -41,8 +43,29 @@ for (const capped of CAPPED_CLIENTS) {
     !SIGNED_IN_LADDER.includes(capped as never))
 }
 
+// The only rung below VISIONOS that serves a whole video (muxed 360p). Without it, a
+// VISIONOS lockdown would take down all playback.
+check('android is the second rung', PLAYER_CLIENT_LADDER[1] === 'android', PLAYER_CLIENT_LADDER[1])
+
 check('the ladder is not empty and has a fallback', PLAYER_CLIENT_LADDER.length >= 2,
   PLAYER_CLIENT_LADDER.length + ' clients')
+
+// The ANDROID fallback yields only a muxed 360p stream and no manifest. The direct backend
+// has no instance; '' used to normalise to 'https:', so the player first spent ~18s on DNS
+// failures for Invidious URLs at a host named "https" before trying the real stream.
+console.log('\ndirect-backend fallback sources')
+check('an empty instance stays empty', normalizeInstance('') === '' && normalizeInstance('  ') === '',
+  JSON.stringify(normalizeInstance('')))
+const muxedOnly = {
+  videoId: 'x', lengthSeconds: 60, liveNow: false, adaptiveFormats: [],
+  formatStreams: [{ url: 'https://rr1---sn-x.googlevideo.com/videoplayback?itag=18', itag: '18',
+    type: 'video/mp4; codecs="avc1.42001E, mp4a.40.2"', qualityLabel: '360p', resolution: '640x360' }]
+} as never
+const candidates = buildSourceCandidates(muxedOnly, { instance: normalizeInstance(''), proxyMode: 'never' })
+check('the only candidate is the direct muxed stream',
+  candidates.length === 1 && candidates[0].kind === 'progressive' &&
+    candidates[0].uri.startsWith('https://rr1---sn-x.googlevideo.com/'),
+  candidates.map(c => c.kind + ' ' + c.uri).join(' | '))
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed')
 process.exit(fail === 0 ? 0 : 1)
