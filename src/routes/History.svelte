@@ -3,6 +3,7 @@
   import { router } from '../lib/router.svelte'
   import { formatDuration } from '../lib/format'
   import MorphText from '../lib/components/MorphText.svelte'
+  import Icon from '../lib/components/Icon.svelte'
 
   let confirmingClear = $state(false)
 
@@ -63,7 +64,7 @@
             onclick={() => library.removeFromHistory(record.videoId)}
             aria-label={'Remove ' + record.title + ' from history'}
           >
-            ✕
+            <Icon name="close" />
           </button>
         </li>
       {/each}

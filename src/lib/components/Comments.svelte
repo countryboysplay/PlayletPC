@@ -3,6 +3,9 @@
   import { session } from '../stores/session.svelte'
   import { formatCount } from '../format'
   import AnimatedNumber from './AnimatedNumber.svelte'
+  import Icon from './Icon.svelte'
+  import { prefersReducedMotion } from 'svelte/motion'
+  import { tick } from 'svelte'
 
   let { videoId }: { videoId: string } = $props()
 
@@ -30,16 +33,22 @@
     }
   }
 
-  function toggle() {
+  let head: HTMLButtonElement
+  async function toggle() {
     open = !open
-    if (open && !loaded && !loading) void load()
+    if (!open) return
+    if (!loaded && !loading) await load()
+    await tick()
+    // The details strip is short; bring the list into view instead of opening it below the fold.
+    // Closed again, or the page moved on, while comments were loading: don't jump.
+    if (open) head?.scrollIntoView({ block: 'start', behavior: prefersReducedMotion.current ? 'auto' : 'smooth' })
   }
 </script>
 
 <section class="comments">
-  <button class="head" aria-expanded={open} onclick={toggle}>
+  <button class="head" bind:this={head} aria-expanded={open} onclick={toggle}>
     Comments{#if count}{' · '}<AnimatedNumber value={count} />{/if}
-    <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+    <Icon name={open ? 'up' : 'down'} />
   </button>
 
   {#if open}

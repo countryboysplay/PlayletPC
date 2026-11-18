@@ -85,6 +85,9 @@ Three seams keep the app shell-agnostic: `api/http.ts` (transport), `stores/stor
 (persistence) and `shell.ts` (window and power). Nothing under `src/` outside
 `lib/desktop.ts` imports Tauri, so the app also runs in a plain browser with `npm run dev`.
 
+The look ("Black & gold": graphite ground, butterscotch ink, cobalt only as light) is
+written down in `DESIGN.md`, with tokens in `src/app.css`. Read it before adding a screen.
+
 ### Why network requests go through Rust
 
 Public Invidious instances set CORS headers inconsistently, and the user picks the

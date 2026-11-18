@@ -871,9 +871,12 @@
     color: var(--ink-dim);
   }
 
-  .text-btn.on {
-    color: var(--ink);
-    background: rgba(217, 162, 58, 0.2);
+  /* The one selected look: pressed-in gold with graphite text (app.css chip.on). */
+  .text-btn.on,
+  .menu button.on {
+    color: var(--ground);
+    background: var(--gold);
+    box-shadow: var(--press-gold);
   }
 
   .text-btn:hover {
@@ -890,7 +893,7 @@
     /* Size to the longest label; the narrow anchor would otherwise wrap "German (Germany)". */
     width: max-content;
     min-width: 116px;
-    max-height: 260px;
+    max-height: min(420px, 70vh);
     overflow-y: auto;
     /* Inside the dock, which already blurs, so a stronger tint stands in for the blur. */
     background: rgba(30, 31, 36, 0.9);
@@ -912,10 +915,5 @@
   .menu button:hover {
     background: rgba(255, 255, 255, 0.08);
     color: var(--ink);
-  }
-
-  .menu button.on {
-    color: var(--ink);
-    background: rgba(217, 162, 58, 0.2);
   }
 </style>

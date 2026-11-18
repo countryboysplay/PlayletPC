@@ -68,7 +68,12 @@
         page
       })
       const filtered = settings.disableShorts ? batch.filter(r => r.type !== 'shortVideo') : batch
-      results = reset ? filtered : [...results, ...filtered]
+      // YouTube can list one item twice (a shelf and the main list, or across pages);
+      // the keyed lists below throw on a duplicate key and the page stays blank.
+      const merged = reset ? filtered : [...results, ...filtered]
+      const key = (r: SearchResult) => (r.type === 'channel' ? r.authorId : r.type === 'playlist' ? r.playlistId : r.videoId)
+      const seen = new Set<string>()
+      results = merged.filter(r => !seen.has(key(r)) && !!seen.add(key(r)))
       // An empty page means there is nothing further to ask for.
       if (batch.length === 0) exhausted = true
       else page += 1
@@ -164,7 +169,7 @@
               <span class="channel-body">
                 <span class="channel-name">{channel.author}</span>
                 <span class="channel-meta tnum">
-                  {formatCount(channel.subCount)} subscribers · {formatCount(channel.videoCount)} videos
+                  {formatCount(channel.subCount)} subscribers{channel.videoCount ? ` · ${formatCount(channel.videoCount)} videos` : ''}
                 </span>
               </span>
             </button>
@@ -181,6 +186,8 @@
             <button class="playlist" onclick={() => router.go('playlist', { plid: playlist.playlistId })}>
               {#if playlist.playlistThumbnail}
                 <img src={playlist.playlistThumbnail} alt="" />
+              {:else}
+                <span class="plate"></span>
               {/if}
               <span class="playlist-title clamp-2">{playlist.title}</span>
               <span class="playlist-meta tnum">{playlist.author}{playlist.videoCount ? ` · ${formatCount(playlist.videoCount)} videos` : ''}</span>
@@ -324,11 +331,21 @@
     text-align: left;
   }
 
-  .playlist img {
+  /* Same cobalt ring and hover glow as the video tiles beside it (VideoCard). */
+  .playlist img,
+  .plate {
+    background: var(--chip);
+    box-shadow: 0 0 0 2px var(--accent);
+    transition: box-shadow 220ms var(--ease);
     width: 100%;
     aspect-ratio: 16 / 9;
     object-fit: cover;
     border-radius: var(--r-card);
+  }
+
+  .playlist:hover :is(img, .plate),
+  .playlist:focus-visible :is(img, .plate) {
+    box-shadow: 0 0 0 2px var(--accent), 0 0 18px 3px rgba(36, 72, 255, 0.55);
   }
 
   .playlist-title {

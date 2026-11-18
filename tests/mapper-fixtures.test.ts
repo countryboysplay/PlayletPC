@@ -110,6 +110,11 @@ eq(thumbs[0].url, 'https://yt3.googleusercontent.com/x=s176', 'extractThumbnails
 ok(thumbs[0].width === 176 && thumbs[1].width === 720, 'extractThumbnails sorted ascending by width')
 eq(extractThumbnails({ sources: [{ url: 'https://a/b.jpg', width: 68, height: 68 }] })[0].width, 68, 'extractThumbnails reads viewModel `sources`')
 eq(extractThumbnails(undefined).length, 0, 'extractThumbnails(undefined) -> []')
+eq(
+  extractThumbnails({ collectionThumbnailViewModel: { primaryThumbnail: { thumbnailViewModel: { image: { sources: [{ url: 'https://a/p.jpg', width: 320, height: 180 }] } } } } })[0]?.url,
+  'https://a/p.jpg',
+  'extractThumbnails reads a playlist lockup collectionThumbnailViewModel'
+)
 
 /* =================================================================== */
 section('player.ios.json  (aqz-KE-bpKQ, Big Buck Bunny, no captions)')

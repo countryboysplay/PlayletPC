@@ -145,7 +145,7 @@
     position: relative;
     aspect-ratio: 16 / 9;
     border-radius: var(--r-card);
-    /* A thin cobalt ring sets each tile off from the gold. Decorative, so the 2.7:1
+    /* A thin cobalt ring sets each tile off from the graphite. Decorative, so the 2.7:1
        contrast is fine; kept thin so cobalt stays near its 10% share. */
     box-shadow: 0 0 0 2px var(--accent);
     transition: box-shadow 220ms var(--ease);
@@ -190,10 +190,19 @@
     line-height: 1.4;
   }
 
-  /* Red means state, and "broadcasting right now" is the strongest state a card has. */
+  /* Same plate as the duration, in gold with a dot: cobalt is kept for actions and rings. */
   .badge.live {
-    background: var(--accent);
-    color: #fff;
+    color: var(--gold);
+  }
+
+  .badge.live::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin: 0 4px 1px 0;
+    border-radius: 50%;
+    background: currentColor;
   }
 
   .resume {

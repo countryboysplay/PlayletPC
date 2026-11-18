@@ -140,7 +140,8 @@
       </div>
     {:else}
       <div class="grid">
-        {#each videos as video (video.videoId)}
+        <!-- Position in the key: YouTube can repeat a video, and a duplicate key throws. -->
+        {#each videos as video, i (i + video.videoId)}
           <VideoCard {video} variant="grid" />
         {/each}
       </div>
@@ -249,28 +250,30 @@
     white-space: pre-wrap;
   }
 
+  /* Tabs are chips, like Search's filters, so the selected one gets the one selected look. */
   .tabs {
     display: flex;
-    gap: var(--space-4);
-    border-bottom: 1px solid var(--edge-soft);
+    gap: var(--space-2);
   }
 
   .tab {
-    padding: var(--space-2) 2px;
+    padding: 5px 12px;
+    border-radius: var(--r-pill);
+    background: var(--chip);
     font-size: 13px;
     font-weight: 600;
-    color: var(--ink-faint);
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-  }
-
-  .tab:hover {
     color: var(--ink-dim);
   }
 
-  .tab.on {
+  .tab:hover {
+    background: var(--chip-hover);
     color: var(--ink);
-    border-bottom-color: var(--ink);
+  }
+
+  .tab.on {
+    color: var(--ground);
+    background: var(--gold);
+    box-shadow: var(--press-gold);
   }
 
   .grid {

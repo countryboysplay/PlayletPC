@@ -119,7 +119,8 @@
       <div class="empty"><p>No recent uploads from these channels.</p></div>
     {:else}
       <div class="grid">
-        {#each videos as video (video.videoId)}
+        <!-- Position in the key: YouTube can repeat a video, and a duplicate key throws. -->
+        {#each videos as video, i (i + video.videoId)}
           <VideoCard {video} variant="grid" />
         {/each}
       </div>

@@ -561,7 +561,6 @@
     border-radius: var(--r-control);
     background: var(--chip-hi);
     border: 1px solid var(--edge-soft);
-    outline: none;
     font-size: 13px;
   }
 
@@ -669,8 +668,14 @@
     transition: background 140ms var(--ease);
   }
 
+  /* Same pressed-in gold as selected chips: cobalt stays for the one main action. */
   .toggle[aria-checked='true'] {
-    background: var(--accent);
+    background: var(--gold);
+    box-shadow: var(--press-gold);
+  }
+
+  .toggle[aria-checked='true'] .knob {
+    background: var(--ground);
   }
 
   .toggle .knob {

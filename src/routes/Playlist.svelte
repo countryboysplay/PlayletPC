@@ -65,7 +65,8 @@
 
     {#if playlist.videos?.length}
       <div class="grid">
-        {#each playlist.videos as video (video.videoId)}
+        <!-- Position in the key: a playlist can hold the same video twice. -->
+        {#each playlist.videos as video, i (i + video.videoId)}
           <VideoCard {video} variant="grid" />
         {/each}
       </div>

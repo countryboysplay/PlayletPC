@@ -10,6 +10,7 @@
   import VideoCard from '../lib/components/VideoCard.svelte'
   import Comments from '../lib/components/Comments.svelte'
   import StaggerText from '../lib/components/StaggerText.svelte'
+  import Icon from '../lib/components/Icon.svelte'
   import AnimatedNumber from '../lib/components/AnimatedNumber.svelte'
   import { storage } from '../lib/stores/storage'
   import { formatViews, formatRelativeTime, pickThumbnail } from '../lib/format'
@@ -211,7 +212,7 @@
             <section class="fold">
               <button class="fold-head" aria-expanded={descriptionOpen} onclick={() => (descriptionOpen = !descriptionOpen)}>
                 Description
-                <span aria-hidden="true">{descriptionOpen ? '▴' : '▾'}</span>
+                <Icon name={descriptionOpen ? 'up' : 'down'} />
               </button>
               {#if descriptionOpen}
                 <p class="description">{video.description}</p>
@@ -236,7 +237,7 @@
         aria-label={upNextCollapsed ? 'Show Up next' : 'Hide Up next'}
         title={upNextCollapsed ? 'Show Up next' : 'Hide Up next'}
       >
-        <span aria-hidden="true">{upNextCollapsed ? '◂' : '▸'}</span>
+        <Icon name={upNextCollapsed ? 'left' : 'right'} />
       </button>
       {#if !upNextCollapsed}
         <h2>Up next</h2>
@@ -254,7 +255,7 @@
             {#each queue.items as item, i}
               <li>
                 <button class="queue-title" onclick={() => (queue.remove(i), router.go('watch', { v: item.videoId }))}>{item.title}</button>
-                <button class="queue-remove" onclick={() => queue.remove(i)} aria-label={'Remove ' + item.title + ' from queue'}>×</button>
+                <button class="queue-remove" onclick={() => queue.remove(i)} aria-label={'Remove ' + item.title + ' from queue'}><Icon name="close" /></button>
               </li>
             {/each}
           </ol>
@@ -306,14 +307,13 @@
      is the ink (zone-graphite turns text and controls gold). Cobalt glows under the
      bottom edge. */
   .panel {
-    border: 1px solid rgba(217, 162, 58, 0.38);
+    border: 1px solid rgba(217, 162, 58, 0.65);
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 30%),
       rgba(30, 31, 36, 0.72);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
     box-shadow:
-      inset 0 1px 0 rgba(255, 236, 196, 0.12),
       0 10px 22px -10px rgba(36, 72, 255, 0.5),
       0 18px 40px rgba(0, 0, 0, 0.45);
   }
@@ -547,8 +547,6 @@
   .description {
     margin: 0;
     padding: var(--space-3) var(--space-4);
-    border-radius: var(--r-card);
-    box-shadow: var(--raise-sm);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     font-size: 13px;
