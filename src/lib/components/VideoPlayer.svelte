@@ -145,6 +145,16 @@
         void retry().then(() => player?.play())
         return
       }
+      // YouTube caps how much of one DASH quality it serves; a 403 there usually clears at
+      // a lower quality, so step down (with fresh URLs) instead of failing. Each step is
+      // lower, so this stops at the bottom quality and falls through to the error below.
+      if (session.isDirect && payload.error.code === 'STREAM_FORBIDDEN' && payload.error.sourceKind !== 'progressive') {
+        const cap = player?.capBelowCurrentQuality(payload.error.uri)
+        if (cap) {
+          void retry().then(() => player?.play())
+          return
+        }
+      }
       loadError = describePlaybackError(payload.error)
       const { code, sourceKind, uri, httpStatus } = payload.error
       errorDetail = [code, sourceKind, httpStatus ? 'HTTP ' + httpStatus : null, uri]
@@ -274,7 +284,8 @@
    */
   function describePlaybackError(error: { code?: string; message: string }): string {
     if (session.isDirect && error.code === 'STREAM_FORBIDDEN') {
-      return 'YouTube stopped serving this stream. It limits how much of one quality it will hand out at a time, which bites soonest at high resolutions - try a lower quality.'
+      // Lower qualities were already tried automatically (see the error handler).
+      return 'YouTube stopped serving this video, even at the lowest quality. Try again in a few minutes.'
     }
     return error.message
   }

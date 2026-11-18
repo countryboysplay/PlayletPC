@@ -482,6 +482,29 @@ export class PlayletPlayer {
     this.emitter.emit('qualitychange', { quality: this.getActiveQuality(), auto: false });
   }
 
+  /**
+   * After YouTube refuses a stream (403): cap playback one height below the current one,
+   * so the next recover() loads a lower quality. Returns the new cap, or null when there is
+   * nothing lower. Picking a quality by hand afterwards still works (it ignores the cap).
+   */
+  capBelowCurrentQuality(failedUri?: string): number | null {
+    // Step down from the format that failed, found by the itag in its URL. By the time the
+    // error arrives shaka has dropped that track and may have switched to another itself.
+    const itag = failedUri ? decodeURIComponent(failedUri).match(/[?&]itag=(\d+)/)?.[1] : undefined;
+    const failed = itag ? this.currentVideo?.adaptiveFormats?.find((f) => f.itag === itag) : undefined;
+    const current =
+      (failed ? parseHeight(failed) : null) ??
+      this.shakaPlayer?.getVariantTracks().find((v) => v.active)?.height ??
+      this.pinnedHeight;
+    if (current == null) return null;
+    const lower = this.qualities.map((q) => q.height).filter((h): h is number => h != null && h < current);
+    if (lower.length === 0) return null;
+    const cap = Math.max(...lower);
+    this.setMaxHeight(cap);
+    if (this.pinnedHeight != null && this.pinnedHeight > cap) this.pinnedHeight = cap;
+    return cap;
+  }
+
   /** Cap ABR (e.g. metered connection). null removes the cap. */
   setMaxHeight(maxHeight: number | null): void {
     if (this.currentOpts) this.currentOpts.maxHeight = maxHeight;
