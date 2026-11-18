@@ -52,7 +52,7 @@
       <div>
         <h1><StaggerText text={playlist.title} /></h1>
         <p class="meta tnum">
-          {playlist.author} · {formatCount(playlist.videoCount)} videos
+          {playlist.author}{playlist.videoCount ? ` · ${formatCount(playlist.videoCount)} videos` : ''}
         </p>
         {#if playlist.description}
           <p class="description">{playlist.description}</p>

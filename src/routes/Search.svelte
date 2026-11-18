@@ -183,7 +183,7 @@
                 <img src={playlist.playlistThumbnail} alt="" />
               {/if}
               <span class="playlist-title clamp-2">{playlist.title}</span>
-              <span class="playlist-meta tnum">{playlist.author} · {playlist.videoCount} videos</span>
+              <span class="playlist-meta tnum">{playlist.author}{playlist.videoCount ? ` · ${formatCount(playlist.videoCount)} videos` : ''}</span>
             </button>
           {/each}
         </div>

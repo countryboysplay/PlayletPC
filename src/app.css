@@ -45,12 +45,14 @@
   --accent: var(--cobalt);
   --accent-dim: var(--cobalt-dim);
   --accent-ink: #ffffff;
-  --accent-wash: rgba(36, 72, 255, 0.16);
 
   /* Neumorphic depth in graphite: light from the top left. */
   --raise: 5px 5px 12px var(--graphite-lo), -4px -4px 10px var(--graphite-hi);
   --raise-sm: 3px 3px 7px var(--graphite-lo), -2px -2px 6px var(--graphite-hi);
   --press: inset 3px 3px 7px var(--graphite-lo), inset -3px -3px 7px var(--graphite-hi);
+  /* Pressed into a gold fill (selected chips and cards): the gold's own shade and light,
+     because graphite shadows smear a gold fill into a dark halo. */
+  --press-gold: inset 2px 2px 4px #a9792a, inset -2px -2px 4px #edbe5e;
 
   /* Frosted glass, only where something moves or scrolls underneath. The tints are
      strong on purpose: text on them must survive a white video frame. */
@@ -111,7 +113,7 @@
 
 /* A selected filter chip stays pressed in. */
 :where(button.chip.on) {
-  box-shadow: var(--press);
+  box-shadow: var(--press-gold);
 }
 
 /* Frosted graphite glass for whatever floats over the video: the player dock and its notices. */

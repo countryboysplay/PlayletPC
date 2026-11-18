@@ -244,8 +244,8 @@
     margin-right: var(--space-5);
     padding: var(--space-3) var(--space-4);
     border-radius: var(--r-card);
-    background: var(--accent-wash);
-    border: 1px solid rgba(255, 28, 48, 0.3);
+    background: var(--chip-hi);
+    border: 1px solid var(--edge);
   }
 
   .notice p {

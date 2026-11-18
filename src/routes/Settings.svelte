@@ -65,6 +65,9 @@
     'backend.selected'
   ])
 
+  /** Roku settings nothing on PC reads (no diagnostics are sent; there is no on-screen keyboard). */
+  const UNUSED_KEYS = new Set(['dev.diagnostics.enabled', 'search.keyboard_language'])
+
   let switchingBackend = $state(false)
 
   async function useBackend(kind: 'playlet' | 'invidious') {
@@ -79,7 +82,9 @@
   }
 
   function renderable(item: PreferenceNode): boolean {
-    return !CUSTOM_KEYS.has(item.key) && item.type !== undefined
+    // Only the types drawn below; the home-layout editor (an array) was never ported.
+    if (CUSTOM_KEYS.has(item.key) || UNUSED_KEYS.has(item.key)) return false
+    return item.type === 'boolean' || item.type === 'string' || (item.type === 'radio' && !!item.options)
   }
 
   /**
@@ -107,9 +112,8 @@
     <header>
       <h2>YouTube account</h2>
       <p>
-        Signing in is what makes full-length playback work. Signed out, YouTube serves
-        only about the first minute of any video to this kind of client. Signing in also
-        brings in your real subscriptions and recommendations.
+        Optional. Signing in brings in your YouTube subscriptions, playlists and
+        recommendations. Videos play in full either way.
       </p>
     </header>
 
@@ -271,12 +275,15 @@
   </section>
 
   {#each PREFERENCE_GROUPS as group (group.key)}
+    {@const items = group.items.filter(renderable)}
+    <!-- Backend's only setting is the custom picker above, so its group would be empty. -->
+    {#if items.length > 0}
     <section class="group">
       <header>
         <h2>{group.displayText}</h2>
       </header>
 
-      {#each group.items.filter(renderable) as item (item.key)}
+      {#each items as item (item.key)}
         <div class="pref">
           <div class="pref-text">
             <span class="pref-label">{item.displayText}</span>
@@ -366,6 +373,7 @@
         </div>
       {/if}
     </section>
+    {/if}
   {/each}
 
   <section class="group">
@@ -475,13 +483,19 @@
     text-align: left;
   }
 
-  .backend:hover:not(:disabled) {
+  .backend:not(.on):hover:not(:disabled) {
     background: var(--chip-hover);
   }
 
+  /* Selected reads like a selected chip: a pressed-in gold fill with graphite text. */
   .backend.on {
-    border-color: var(--accent);
-    background: var(--accent-wash);
+    background: var(--ink);
+    color: var(--ground);
+    box-shadow: var(--press-gold);
+  }
+
+  .backend.on .backend-note {
+    color: inherit;
   }
 
   .backend:disabled {

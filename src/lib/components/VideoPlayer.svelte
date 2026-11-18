@@ -887,6 +887,8 @@
     margin: 0;
     padding: 4px;
     list-style: none;
+    /* Size to the longest label; the narrow anchor would otherwise wrap "German (Germany)". */
+    width: max-content;
     min-width: 116px;
     max-height: 260px;
     overflow-y: auto;
