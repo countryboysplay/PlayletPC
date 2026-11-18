@@ -9,6 +9,7 @@ mod oauth;
 mod net;
 mod power;
 mod tray;
+mod update;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -25,6 +26,8 @@ pub struct AppState {
     pub innertube: innertube::InnertubeState,
     pub stream_urls: media::StreamUrlCache,
     pub awake: power::KeepAwake,
+    /// A player is mounted (set with the sleep blocker); updates never interrupt it.
+    pub video_open: AtomicBool,
     pub close_to_tray: AtomicBool,
 }
 
@@ -66,7 +69,8 @@ fn main() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_os::init());
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_updater::Builder::new().build());
 
     // Media keys need no plugin: the webview's Media Session (VideoPlayer.svelte) is
     // routed by Windows to whichever app is the active media session.
@@ -81,6 +85,7 @@ fn main() {
             innertube: innertube::InnertubeState::new(),
             stream_urls: media::StreamUrlCache::new(),
             awake: power::KeepAwake::spawn(),
+            video_open: AtomicBool::new(false),
             close_to_tray: AtomicBool::new(false),
         })
         .invoke_handler(tauri::generate_handler![
@@ -118,6 +123,8 @@ fn main() {
 
             #[cfg(desktop)]
             tray::build(&handle)?;
+
+            update::spawn(handle.clone());
 
             // Window is created hidden (visible:false) so the user never sees it
             // jump from the default position to the restored one.
